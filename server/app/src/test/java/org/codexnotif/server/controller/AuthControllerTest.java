@@ -9,16 +9,11 @@ import java.util.Arrays;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-
 class AuthControllerTest {
 
     @Test
     void validDeviceTokenReportsBothAuthenticationLayers() {
-        DeviceService devices = mock(DeviceService.class);
-        when(devices.validate("D_TEST", "device-token")).thenReturn(true);
+        StubDeviceService devices = new StubDeviceService(true);
         AuthController controller = new AuthController(devices);
 
         AuthCheckResponse response = controller.check(
@@ -26,13 +21,13 @@ class AuthControllerTest {
 
         assertTrue(response.accessKeyAuthenticated());
         assertTrue(response.deviceAuthenticated());
-        verify(devices).validate("D_TEST", "device-token");
+        assertEquals("D_TEST", devices.deviceId);
+        assertEquals("device-token", devices.deviceToken);
     }
 
     @Test
     void invalidOrMissingDeviceTokenDoesNotRevealDeviceDetails() {
-        DeviceService devices = mock(DeviceService.class);
-        when(devices.validate("D_TEST", null)).thenReturn(false);
+        StubDeviceService devices = new StubDeviceService(false);
         AuthController controller = new AuthController(devices);
 
         AuthCheckResponse response = controller.check("D_TEST", null);
@@ -46,5 +41,23 @@ class AuthControllerTest {
                 Arrays.stream(AuthCheckResponse.class.getRecordComponents())
                         .map(component -> component.getName())
                         .toList());
+    }
+
+    private static final class StubDeviceService extends DeviceService {
+        private final boolean validationResult;
+        private String deviceId;
+        private String deviceToken;
+
+        private StubDeviceService(boolean validationResult) {
+            super(null);
+            this.validationResult = validationResult;
+        }
+
+        @Override
+        public boolean validate(String deviceId, String rawToken) {
+            this.deviceId = deviceId;
+            this.deviceToken = rawToken;
+            return validationResult;
+        }
     }
 }
