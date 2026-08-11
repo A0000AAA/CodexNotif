@@ -27,7 +27,7 @@
 **Interfaces:**
 - Produces: `CodexNotifyCommand.TargetsExecutable(IReadOnlyList<string>, string)` 返回命令是否直接或嵌套指向当前可执行文件。
 
-- [ ] **Step 1: 写入失败回归测试**
+- [x] **Step 1: 写入失败回归测试**
 
 ```csharp
 var previous = JsonSerializer.Serialize(new[] { executable, "--codex-notify" });
@@ -41,13 +41,13 @@ Assert(CodexNotifyConfiguration.GetStatus(config, executable)
        "wrapped CodexNotif command must be Installed");
 ```
 
-- [ ] **Step 2: 运行测试并确认旧实现失败**
+- [x] **Step 2: 运行测试并确认旧实现失败**
 
 Run: `dotnet run --project desktop/tests/AgentPager.SelfTests/AgentPager.SelfTests.csproj`
 
 Expected: FAIL，包装器被报告为 `Missing`。
 
-- [ ] **Step 3: 实现有界命令识别**
+- [x] **Step 3: 实现有界命令识别**
 
 ```csharp
 public static bool TargetsExecutable(
@@ -61,13 +61,13 @@ public static bool TargetsExecutable(
 解析每个 `--previous-notify` 后的 JSON 字符串数组；直接命令同时满足可执行文件
 路径相同且包含 `--codex-notify`。深度达到 8 或 JSON 无效时返回 `false`。
 
-- [ ] **Step 4: 让配置层复用识别器并运行测试**
+- [x] **Step 4: 让配置层复用识别器并运行测试**
 
 Run: `dotnet run --project desktop/tests/AgentPager.SelfTests/AgentPager.SelfTests.csproj`
 
 Expected: 新测试与既有测试全部 PASS。
 
-- [ ] **Step 5: 提交配置识别修复**
+- [x] **Step 5: 提交配置识别修复**
 
 ```powershell
 git add -- desktop/app/Services/CodexNotifyCommand.cs desktop/app/Services/CodexNotifyConfiguration.cs desktop/tests/AgentPager.SelfTests/Program.cs
@@ -85,7 +85,7 @@ git commit -m "fix: 识别包装器中的 Codex 通知命令"
 - Consumes: Task 1 的嵌套 JSON 解析。
 - Produces: `CodexNotifyCommand.CreateSafeForwardCommand(IReadOnlyList<string>)` 返回可以安全启动的参数数组，直接 CodexNotif 命令返回空数组。
 
-- [ ] **Step 1: 写入失败转发测试**
+- [x] **Step 1: 写入失败转发测试**
 
 ```csharp
 if (args is ["--capture-arguments", var capturePath, .. var captured])
@@ -103,13 +103,13 @@ Assert(JsonSerializer.Deserialize<string[]>(File.ReadAllText(capturePath))!
        "recursive previous-notify pair must be removed before forwarding");
 ```
 
-- [ ] **Step 2: 运行测试并确认旧实现失败**
+- [x] **Step 2: 运行测试并确认旧实现失败**
 
 Run: `dotnet run --project desktop/tests/AgentPager.SelfTests/AgentPager.SelfTests.csproj`
 
 Expected: FAIL，因为捕获进程收到 `--previous-notify` 而不是 payload。
 
-- [ ] **Step 3: 实现净化并接入转发器**
+- [x] **Step 3: 实现净化并接入转发器**
 
 ```csharp
 var safeCommand = CodexNotifyCommand.CreateSafeForwardCommand(command);
@@ -123,7 +123,7 @@ if (safeCommand.Count == 0)
 逐项复制命令；仅当 `--previous-notify` 后的 JSON 数组包含
 `--codex-notify` 时跳过该参数对。
 
-- [ ] **Step 4: 运行全部桌面端验证**
+- [x] **Step 4: 运行全部桌面端验证**
 
 Run: `dotnet run --project desktop/tests/AgentPager.SelfTests/AgentPager.SelfTests.csproj`
 
@@ -131,7 +131,7 @@ Run: `dotnet build desktop/app/AgentPager.csproj -c Release`
 
 Expected: 两条命令均以退出码 0 完成。
 
-- [ ] **Step 5: 提交运行时修复**
+- [x] **Step 5: 提交运行时修复**
 
 ```powershell
 git add -- desktop/app/Services/CodexNotifyCommand.cs desktop/app/Services/CodexNotifyForwarder.cs desktop/tests/AgentPager.SelfTests/Program.cs
@@ -147,7 +147,7 @@ git commit -m "fix: 阻止 Codex 完成通知递归转发"
 - Consumes: Task 1 与 Task 2 的全部实现和测试结果。
 - Produces: 可公开推送的无敏感信息提交。
 
-- [ ] **Step 1: 检查差异与敏感信息**
+- [x] **Step 1: 检查差异与敏感信息**
 
 Run: `git diff --check`
 
@@ -155,7 +155,7 @@ Run: `rg -n -i "(password|secret|token|api[_-]?key|BEGIN (RSA |EC |OPENSSH )?PRI
 
 Expected: 没有真实凭据、私有地址或私钥；测试占位符必须使用 `.test` 或示例值。
 
-- [ ] **Step 2: 检查提交与远端 TLS**
+- [x] **Step 2: 检查提交与远端 TLS**
 
 Run: `git status --short --branch`
 
