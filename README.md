@@ -162,7 +162,7 @@ dotnet publish desktop/app/AgentPager.csproj -c Release --self-contained false -
 2. 打开 CodexNotif，在“服务器设置”的遮罩密钥框中粘贴；
 3. 点击“保存并测试”。
 
-密钥框永远不会回填真实值；留空表示保留现有密钥。新值只写入 Windows 当前用户环境变量并立即用于当前客户端，不会进入 `%LOCALAPPDATA%\CodexNotif\settings.json`、日志或界面明文。更换已有密钥后应重新打开 Codex，避免其子进程继续继承旧环境变量。
+密钥框永远不会回填真实值；留空表示保留现有密钥。新值会使用 Windows DPAPI（当前用户范围）加密保存到 `%LOCALAPPDATA%\CodexNotif\access-key.dat`，并在系统允许时同步到当前用户环境变量；它不会进入 `%LOCALAPPDATA%\CodexNotif\settings.json`、日志或界面明文。某些电脑的安全策略会拒绝写入用户环境变量，客户端会自动改用 DPAPI 加密存储，无需管理员权限。该加密文件只能由保存它的 Windows 用户在本机解密，因此换电脑或换 Windows 用户后需要重新配置一次。更换已有密钥后应重新打开 Codex，避免已启动的旧进程继续使用旧值。
 
 无人值守或批量部署可以在仓库根目录运行：
 
@@ -176,7 +176,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\Set-CodexNotifAccessKe
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\Set-CodexNotifAccessKey.ps1 -UseClipboard
 ```
 
-通过脚本修改环境变量后必须完全退出并重新打开 CodexNotif 和 Codex。
+通过脚本修改环境变量后必须完全退出并重新打开 CodexNotif 和 Codex。日常配置优先使用客户端界面；脚本适合无人值守部署，但可能被电脑的安全策略禁止写入环境变量。
 
 打开程序后，在“服务器设置”中填写完整的 HTTPS 服务地址并点击“保存并测试”；只有 `localhost`、`127.0.0.1`、`::1` 等本机回环地址允许使用 HTTP。地址会保存到当前用户的 `%LOCALAPPDATA%\CodexNotif\settings.json`，桌面界面和后台 Codex 完成通知共用该值。“保存并测试”会同时验证服务器访问密钥；已绑定设备还会验证 Device Token。客户端不会自动跟随服务器重定向，避免把访问密钥带到其他地址。
 
@@ -350,7 +350,7 @@ Android/HyperOS 仍可能在用户“强行停止”、厂商深度清理或重�
 
 ### 服务健康，但 Windows 客户端连接失败
 
-检查 `CODEXNOTIF_SERVER_URL` 是否包含正确协议且没有额外路径；再确认 `CODEXNOTIF_ACCESS_KEY` 已配置、长度不少于 32 个字符并与服务端完全一致。修改用户级环境变量后必须重启客户端和 Codex。生产环境还要验证 HTTPS 证书链和带访问密钥头的 Nginx `/health`。
+检查 `CODEXNOTIF_SERVER_URL` 是否包含正确协议且没有额外路径；再确认客户端界面中的访问密钥长度不少于 32 个字符并与服务端完全一致。若电脑拒绝写入用户环境变量，直接在遮罩输入框粘贴密钥并点击“保存并测试”，客户端会自动使用 Windows 当前用户加密存储。通过环境变量修改配置后必须重启客户端和 Codex。生产环境还要验证 HTTPS 证书链和带访问密钥头的 Nginx `/health`。
 
 ### 服务端启动失败并提示 CODEXNOTIF_ACCESS_KEY
 
@@ -380,7 +380,7 @@ Android/HyperOS 仍可能在用户“强行停止”、厂商深度清理或重�
 
 - 任何 `.env`、真实邮箱密码、QQ 授权码、Graph 客户端密码、Token、证书和私钥都不要提交到 Git；
 - 生产服务只通过 HTTPS 暴露，Java 端口保持回环监听；
-- `CODEXNOTIF_ACCESS_KEY` 至少 32 个字符，只保存在宝塔环境变量和 Windows 用户环境变量中；服务端除一次性邮箱验证链接外会保护 `/health` 与全部 `/api/v1/**`；
+- `CODEXNOTIF_ACCESS_KEY` 至少 32 个字符；服务端保存在宝塔环境变量，Windows 客户端保存在 DPAPI 当前用户加密文件并尽力同步用户环境变量；服务端除一次性邮箱验证链接外会保护 `/health` 与全部 `/api/v1/**`；
 - `APP_ENCRYPTION_KEY` 使用独立备份保存，泄露时需要更换并重新绑定/授权；
 - `ADMIN_SETUP_TOKEN` 使用高熵随机值，完成管理操作后轮换；
 - 给 H2 数据目录、应用目录和日志设置最小权限；

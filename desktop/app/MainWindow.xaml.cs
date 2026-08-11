@@ -420,6 +420,7 @@ public partial class MainWindow : Window
         var previousBaseUrl = _settings.ServerBaseUrl;
         var enteredAccessKey = AccessKeyPasswordBox.Password;
         var accessKeyChanged = false;
+        AccessKeySaveLocation? accessKeySaveLocation = null;
         SetServerButtonsEnabled(false);
 
         try
@@ -439,7 +440,8 @@ public partial class MainWindow : Window
 
             if (validatedAccessKey is not null)
             {
-                ServerAccessKeyResolver.SaveForCurrentUser(
+                accessKeySaveLocation =
+                    ServerAccessKeyResolver.SaveForCurrentUser(
                     validatedAccessKey);
                 AccessKeyPasswordBox.Clear();
                 accessKeyChanged = true;
@@ -448,16 +450,24 @@ public partial class MainWindow : Window
             var server = ServerAddressResolver.Resolve(
                 _settings.ServerBaseUrl);
             ReplaceRelay(server);
+            var usedProtectedStorage = accessKeySaveLocation ==
+                                       AccessKeySaveLocation.ProtectedLocalStorage;
             ServerSettingsStatusText.Text =
-                accessKeyChanged
+                usedProtectedStorage
+                    ? "该电脑禁止写入用户环境变量，访问密钥已使用 Windows 当前用户加密存储，正在验证..."
+                : accessKeyChanged
                     ? "服务器地址与访问密钥已保存，正在验证..."
                     : "服务器设置已保存，正在验证...";
 
             var ok = await CheckServerAsync();
             ServerSettingsStatusText.Text = ok
-                ? accessKeyChanged
+                ? usedProtectedStorage
+                    ? "访问密钥已使用 Windows 当前用户加密存储，认证正常。"
+                : accessKeyChanged
                     ? "服务器地址与访问密钥已保存，认证正常。"
                     : "服务器设置已保存，认证正常。"
+                : usedProtectedStorage
+                    ? "访问密钥已安全保存，但服务器认证失败；请确认宝塔使用相同密钥。"
                 : accessKeyChanged
                     ? "访问密钥已保存，但服务器认证失败；请确认宝塔使用相同密钥。"
                     : "服务器设置已保存，但当前认证失败。";
@@ -548,8 +558,8 @@ public partial class MainWindow : Window
     private void UpdateAccessKeyStatus()
     {
         AccessKeyStatusText.Text = _relay.HasValidAccessKey
-            ? $"访问密钥：已从环境变量 {ServerAccessKeyResolver.EnvironmentVariableName} 加载。"
-            : $"访问密钥：未配置有效的 {ServerAccessKeyResolver.EnvironmentVariableName}。";
+            ? "访问密钥：已安全加载。"
+            : "访问密钥：未配置，请在上方遮罩输入框中填写。";
     }
 
     private async Task<bool> CheckServerAsync()
