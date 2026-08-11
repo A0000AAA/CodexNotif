@@ -163,7 +163,7 @@ Run: `git config --get-urlmatch http.sslVerify https://github.com/`
 
 Expected: 仅包含计划内改动，TLS 输出为 `true`。
 
-- [ ] **Step 3: 推送主分支**
+- [x] **Step 3: 推送主分支**
 
 Run: `git push origin main`
 
