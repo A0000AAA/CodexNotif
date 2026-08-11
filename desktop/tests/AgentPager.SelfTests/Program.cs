@@ -87,6 +87,39 @@ Run("access key resolver rejects missing and unsafe values", () =>
     }
 });
 
+Run("access key resolver prefers current process value", () =>
+{
+    var previous = Environment.GetEnvironmentVariable(
+        ServerAccessKeyResolver.EnvironmentVariableName,
+        EnvironmentVariableTarget.Process);
+
+    try
+    {
+        var expected = new string('p', 32);
+        Environment.SetEnvironmentVariable(
+            ServerAccessKeyResolver.EnvironmentVariableName,
+            expected,
+            EnvironmentVariableTarget.Process);
+
+        Assert(
+            ServerAccessKeyResolver.ReadOptional() == expected,
+            "process access key must win");
+    }
+    finally
+    {
+        Environment.SetEnvironmentVariable(
+            ServerAccessKeyResolver.EnvironmentVariableName,
+            previous,
+            EnvironmentVariableTarget.Process);
+    }
+});
+
+Run("access key save rejects invalid values before persistence", () =>
+{
+    AssertThrows<InvalidOperationException>(() =>
+        ServerAccessKeyResolver.SaveForCurrentUser("short"));
+});
+
 await RunAsync("relay rejects a missing access key before network access", async () =>
 {
     var handler = new CaptureHttpHandler();

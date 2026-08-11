@@ -9,7 +9,12 @@ public static class ServerAccessKeyResolver
 
     public static string? ReadOptional()
     {
-        return Environment.GetEnvironmentVariable(EnvironmentVariableName);
+        return Environment.GetEnvironmentVariable(
+                   EnvironmentVariableName,
+                   EnvironmentVariableTarget.Process)
+               ?? Environment.GetEnvironmentVariable(
+                   EnvironmentVariableName,
+                   EnvironmentVariableTarget.User);
     }
 
     public static string Read()
@@ -43,5 +48,18 @@ public static class ServerAccessKeyResolver
         }
 
         return value;
+    }
+
+    public static void SaveForCurrentUser(string value)
+    {
+        string key = Validate(value);
+        Environment.SetEnvironmentVariable(
+            EnvironmentVariableName,
+            key,
+            EnvironmentVariableTarget.User);
+        Environment.SetEnvironmentVariable(
+            EnvironmentVariableName,
+            key,
+            EnvironmentVariableTarget.Process);
     }
 }
