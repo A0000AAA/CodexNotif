@@ -29,7 +29,7 @@
 - Produces: `ServerAddressResolver.Normalize(string)`、`ServerAddressResolver.Resolve(string?, string?)`、`ServerAddressResolution`、`ServerAddressSource`。
 - Produces: `RelayApiClient(string serverBaseUrl)` 和实例属性 `ServerBaseUrl`。
 
-- [ ] **Step 1: 写入地址解析失败测试**
+- [x] **Step 1: 写入地址解析失败测试**
 
 ```csharp
 Run("saved server URL wins and invalid URLs are rejected", () =>
@@ -46,13 +46,13 @@ Run("saved server URL wins and invalid URLs are rejected", () =>
 });
 ```
 
-- [ ] **Step 2: 运行测试并确认 RED**
+- [x] **Step 2: 运行测试并确认 RED**
 
 Run: `dotnet run --project desktop/tests/AgentPager.SelfTests/AgentPager.SelfTests.csproj`
 
 Expected: 编译失败，`ServerAddressResolver` 尚不存在。
 
-- [ ] **Step 3: 实现解析器与显式 API 地址**
+- [x] **Step 3: 实现解析器与显式 API 地址**
 
 ```csharp
 public enum ServerAddressSource
@@ -89,7 +89,7 @@ public static ServerAddressResolution Resolve(string? savedBaseUrl)
 非空主机、空 `UserInfo`、空 `Query`、空 `Fragment`，并去掉末尾 `/`。
 `RelayApiClient` 构造函数保存规范化后的实例地址，所有请求使用该属性。
 
-- [ ] **Step 4: 补齐优先级与非法地址测试并运行 GREEN**
+- [x] **Step 4: 补齐优先级与非法地址测试并运行 GREEN**
 
 ```csharp
 Assert(
@@ -120,7 +120,7 @@ Run: `dotnet run --project desktop/tests/AgentPager.SelfTests/AgentPager.SelfTes
 
 Expected: 全部测试 PASS。
 
-- [ ] **Step 5: 本地提交解析器**
+- [x] **Step 5: 本地提交解析器**
 
 ```powershell
 git add -- desktop/app/Services/ServerAddressResolver.cs desktop/app/Services/RelayApiClient.cs desktop/tests/AgentPager.SelfTests/Program.cs
@@ -140,7 +140,7 @@ git commit -m "feat: 增加桌面端服务器地址解析"
 - Consumes: Task 1 的 `ServerAddressResolver` 与 `RelayApiClient(string)`。
 - Produces: `AppSettings.ServerBaseUrl`；`SettingsService(string? path = null)` 支持默认本地路径与可测试的显式路径。
 
-- [ ] **Step 1: 写入设置往返失败测试**
+- [x] **Step 1: 写入设置往返失败测试**
 
 ```csharp
 Run("server URL persists without changing binding data", () =>
@@ -161,13 +161,13 @@ Run("server URL persists without changing binding data", () =>
 });
 ```
 
-- [ ] **Step 2: 运行测试并确认 RED**
+- [x] **Step 2: 运行测试并确认 RED**
 
 Run: `dotnet run --project desktop/tests/AgentPager.SelfTests/AgentPager.SelfTests.csproj`
 
 Expected: 编译失败，模型字段和显式设置路径尚不存在。
 
-- [ ] **Step 3: 实现模型、持久化和后台入口**
+- [x] **Step 3: 实现模型、持久化和后台入口**
 
 ```csharp
 public string ServerBaseUrl { get; set; } = "";
@@ -199,7 +199,7 @@ using var relay = new RelayApiClient(server.BaseUrl);
 
 随后将同一 `settings` 传给现有 Runner。
 
-- [ ] **Step 4: 让窗口构造使用同一解析结果并运行 GREEN**
+- [x] **Step 4: 让窗口构造使用同一解析结果并运行 GREEN**
 
 将 `MainWindow._relay` 改为构造函数中在加载 `_settings` 后初始化，并把现有
 静态 `RelayApiClient.ServerBaseUrl` 显示改为实例 `_relay.ServerBaseUrl`。
@@ -208,7 +208,7 @@ Run: `dotnet run --project desktop/tests/AgentPager.SelfTests/AgentPager.SelfTes
 
 Expected: 全部测试 PASS。
 
-- [ ] **Step 5: 本地提交持久化与统一入口**
+- [x] **Step 5: 本地提交持久化与统一入口**
 
 ```powershell
 git add -- desktop/app/Models/AppSettings.cs desktop/app/Services/SettingsService.cs desktop/app/App.xaml.cs desktop/app/MainWindow.xaml.cs desktop/tests/AgentPager.SelfTests/Program.cs
@@ -226,7 +226,7 @@ git commit -m "feat: 统一前后台服务器配置"
 - Consumes: Task 1 和 Task 2 的地址解析、持久化和可替换 `_relay`。
 - Produces: `SaveServerButton_Click`、`RestoreServerButton_Click`、`ReplaceRelay` 和可见服务器配置卡片。
 
-- [ ] **Step 1: 增加服务器设置卡片**
+- [x] **Step 1: 增加服务器设置卡片**
 
 ```xml
 <TextBox x:Name="ServerUrlTextBox"/>
@@ -237,7 +237,7 @@ git commit -m "feat: 统一前后台服务器配置"
 
 卡片放在主区左列、邮箱绑定卡片之前，并复用现有 `CardStyle`、主按钮和次按钮样式。
 
-- [ ] **Step 2: 实现保存、恢复和连接结果**
+- [x] **Step 2: 实现保存、恢复和连接结果**
 
 ```csharp
 private async void SaveServerButton_Click(object sender, RoutedEventArgs e)
@@ -265,7 +265,7 @@ private async void SaveServerButton_Click(object sender, RoutedEventArgs e)
 捕获 `ArgumentException` 时显示格式原因且不保存。恢复按钮清空保存值，重建客户端
 并检查。`CheckServerAsync` 返回 `bool`，保持现有顶部状态和事件记录行为。
 
-- [ ] **Step 3: 更新 README**
+- [x] **Step 3: 更新 README**
 
 说明 GUI 配置路径、三层优先级、环境变量回退、后台生效需重启 Codex；所有示例
 只使用 `https://notify.example.com`，不得写入真实地址。

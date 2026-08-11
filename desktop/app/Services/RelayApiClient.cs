@@ -8,11 +8,6 @@ namespace AgentPager.Services;
 
 public sealed class RelayApiClient : IDisposable
 {
-    public RelayApiClient()
-        : this(ServerAddressResolver.Resolve(null).BaseUrl)
-    {
-    }
-
     public RelayApiClient(string serverBaseUrl)
     {
         ServerBaseUrl = ServerAddressResolver.Normalize(serverBaseUrl);

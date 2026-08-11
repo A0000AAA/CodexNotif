@@ -31,9 +31,28 @@ public partial class MainWindow : Window
 
         _deviceId = new DeviceIdentityService().GetOrCreate();
         _settings = _settingsService.Load();
-        var server = ServerAddressResolver.Resolve(
-            _settings.ServerBaseUrl);
+        ServerAddressResolution server;
+        string? serverConfigurationError = null;
+
+        try
+        {
+            server = ServerAddressResolver.Resolve(
+                _settings.ServerBaseUrl);
+        }
+        catch (ArgumentException ex)
+        {
+            server = ServerAddressResolver.Resolve("", "");
+            serverConfigurationError = ex.Message;
+        }
+
         _relay = new RelayApiClient(server.BaseUrl);
+        ServerUrlTextBox.Text = serverConfigurationError is null
+            ? server.BaseUrl
+            : _settings.ServerBaseUrl;
+        UpdateServerSource(server);
+        ServerSettingsStatusText.Text = serverConfigurationError is null
+            ? "当前地址已加载。"
+            : "已保存的地址无效：" + serverConfigurationError;
 
         DeviceIdText.Text = _deviceId;
 
@@ -391,7 +410,112 @@ public partial class MainWindow : Window
         await CheckServerAsync();
     }
 
-    private async Task CheckServerAsync()
+    private async void SaveServerButton_Click(
+        object sender,
+        RoutedEventArgs e)
+    {
+        var previousBaseUrl = _settings.ServerBaseUrl;
+        SetServerButtonsEnabled(false);
+
+        try
+        {
+            var normalized = ServerAddressResolver.Normalize(
+                ServerUrlTextBox.Text);
+            _settings.ServerBaseUrl = normalized;
+            _settingsService.Save(_settings);
+
+            var server = ServerAddressResolver.Resolve(
+                _settings.ServerBaseUrl);
+            ReplaceRelay(server);
+            ServerSettingsStatusText.Text =
+                "服务器设置已保存，正在测试连接...";
+
+            var ok = await CheckServerAsync();
+            ServerSettingsStatusText.Text = ok
+                ? "服务器设置已保存，连接正常。"
+                : "服务器设置已保存，但当前无法连接。";
+        }
+        catch (ArgumentException ex)
+        {
+            _settings.ServerBaseUrl = previousBaseUrl;
+            ServerSettingsStatusText.Text = ex.Message;
+        }
+        catch (Exception ex)
+        {
+            _settings.ServerBaseUrl = previousBaseUrl;
+            ServerSettingsStatusText.Text =
+                "服务器设置保存失败：" + ex.Message;
+        }
+        finally
+        {
+            SetServerButtonsEnabled(true);
+        }
+    }
+
+    private async void RestoreServerButton_Click(
+        object sender,
+        RoutedEventArgs e)
+    {
+        var previousBaseUrl = _settings.ServerBaseUrl;
+        SetServerButtonsEnabled(false);
+
+        try
+        {
+            var server = ServerAddressResolver.Resolve(
+                "",
+                Environment.GetEnvironmentVariable(
+                    "CODEXNOTIF_SERVER_URL"));
+            _settings.ServerBaseUrl = "";
+            _settingsService.Save(_settings);
+            ReplaceRelay(server);
+            var ok = await CheckServerAsync();
+            ServerSettingsStatusText.Text = ok
+                ? "已恢复回退配置，连接正常。"
+                : "已恢复回退配置，但当前无法连接。";
+        }
+        catch (Exception ex)
+        {
+            _settings.ServerBaseUrl = previousBaseUrl;
+            ServerSettingsStatusText.Text =
+                "恢复默认设置失败：" + ex.Message;
+        }
+        finally
+        {
+            SetServerButtonsEnabled(true);
+        }
+    }
+
+    private void ReplaceRelay(ServerAddressResolution server)
+    {
+        var replacement = new RelayApiClient(server.BaseUrl);
+        var previous = _relay;
+        _relay = replacement;
+        previous.Dispose();
+
+        ServerUrlTextBox.Text = server.BaseUrl;
+        UpdateServerSource(server);
+    }
+
+    private void UpdateServerSource(ServerAddressResolution server)
+    {
+        var source = server.Source switch
+        {
+            ServerAddressSource.ClientSettings => "客户端设置",
+            ServerAddressSource.EnvironmentVariable => "环境变量",
+            _ => "内置默认值"
+        };
+
+        ServerSourceText.Text =
+            $"当前使用：{server.BaseUrl}（{source}）";
+    }
+
+    private void SetServerButtonsEnabled(bool enabled)
+    {
+        SaveServerButton.IsEnabled = enabled;
+        RestoreServerButton.IsEnabled = enabled;
+    }
+
+    private async Task<bool> CheckServerAsync()
     {
         ServerStatusText.Text =
             "正在检查服务器...";
@@ -407,6 +531,8 @@ public partial class MainWindow : Window
             AddEvent(
                 ok ? "服务器在线" : "服务器异常",
                 _relay.ServerBaseUrl);
+
+            return ok;
         }
         catch (Exception ex)
         {
@@ -415,6 +541,8 @@ public partial class MainWindow : Window
 
             StatusText.Text =
                 "服务器检查失败：" + ex.Message;
+
+            return false;
         }
     }
 

@@ -139,7 +139,15 @@ dotnet build desktop/app/AgentPager.csproj -c Release
 dotnet publish desktop/app/AgentPager.csproj -c Release --self-contained false -o desktop/app/bin/Release/net8.0-windows/publish
 ```
 
-最终程序为 `desktop/app/bin/Release/net8.0-windows/publish/CodexNotif.exe`。如果服务端不在本机，先设置用户级地址，再重新打开程序：
+最终程序为 `desktop/app/bin/Release/net8.0-windows/publish/CodexNotif.exe`。打开程序后，在“服务器设置”中填写完整的 HTTP(S) 服务地址并点击“保存并测试”。地址会保存到当前用户的 `%LOCALAPPDATA%\CodexNotif\settings.json`，桌面界面和后台 Codex 完成通知共用该值。
+
+服务器地址按以下优先级解析：
+
+1. 客户端“服务器设置”中保存的地址；
+2. `CODEXNOTIF_SERVER_URL` 环境变量；
+3. 内置默认值 `http://localhost:27843`。
+
+无人值守部署也可以设置用户级环境变量，再重新打开程序：
 
 ```powershell
 [Environment]::SetEnvironmentVariable(
@@ -151,13 +159,15 @@ dotnet publish desktop/app/AgentPager.csproj -c Release --self-contained false -
 
 打开 `CodexNotif.exe` 后：
 
-1. 确认服务状态正常；
+1. 在“服务器设置”中填写服务地址，点击“保存并测试”，确认连接正常；
 2. 填写接收提醒的邮箱；
 3. 打开验证邮件中的链接；
 4. 回到桌面端等待绑定完成；
 5. 点击“启用 Codex 监听”；
 6. 同意程序备份并更新当前用户的 `.codex/config.toml`；
 7. 完全退出并重新打开 Codex。
+
+“恢复默认”会清除客户端保存的地址，然后重新使用环境变量或内置本机地址。更改服务器地址不会删除已保存的邮箱绑定和 Device Token；如果切换到另一台服务器，应使用“发送测试通知”确认原绑定在新服务器上仍然有效。
 
 程序使用 Codex 原生 `notify` 接收 `agent-turn-complete`。如果原本已有其他 `notify` 命令，安装器会记录并继续转发给原命令。恢复时只在配置仍等于本程序安装内容时操作，避免覆盖用户之后的修改。
 

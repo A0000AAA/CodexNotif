@@ -132,8 +132,58 @@
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Grid.Column="0">
-                    <!-- Binding -->
+                    <!-- Server settings -->
                     <Border Style="{StaticResource CardStyle}">
+                        <StackPanel>
+                            <TextBlock Text="服务器设置"
+                                       FontSize="18"
+                                       FontWeight="SemiBold"/>
+
+                            <TextBlock Margin="0,5,0,16"
+                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       Text="桌面界面与后台 Codex 完成通知共用此地址。"/>
+
+                            <TextBlock Text="服务器地址"/>
+
+                            <TextBox x:Name="ServerUrlTextBox"
+                                     Margin="0,7,0,0"
+                                     ToolTip="例如 https://notify.example.com"/>
+
+                            <WrapPanel Margin="0,12,0,0">
+                                <Button x:Name="SaveServerButton"
+                                        Content="保存并测试"
+                                        Click="SaveServerButton_Click"
+                                        Style="{StaticResource PrimaryButtonStyle}"
+                                        Margin="0,0,10,10"/>
+
+                                <Button x:Name="RestoreServerButton"
+                                        Content="恢复默认"
+                                        Click="RestoreServerButton_Click"
+                                        Style="{StaticResource SecondaryButtonStyle}"
+                                        Margin="0,0,10,10"/>
+                            </WrapPanel>
+
+                            <Border Margin="0,2,0,0"
+                                    Background="#F9FAFB"
+                                    CornerRadius="8"
+                                    Padding="12">
+                                <StackPanel>
+                                    <TextBlock x:Name="ServerSourceText"
+                                               TextWrapping="Wrap"
+                                               FontWeight="SemiBold"/>
+                                    <TextBlock x:Name="ServerSettingsStatusText"
+                                               Margin="0,5,0,0"
+                                               Text="等待检查服务器。"
+                                               TextWrapping="Wrap"
+                                               Foreground="{StaticResource TextSecondaryBrush}"/>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Binding -->
+                    <Border Margin="0,16,0,0"
+                            Style="{StaticResource CardStyle}">
                         <StackPanel>
                             <TextBlock Text="邮箱绑定"
                                        FontSize="18"
