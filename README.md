@@ -70,7 +70,19 @@ Windows 客户端提交给服务端的事件只有：
 
 ## 1. 本地启动服务端
 
-先生成服务端必须使用的 32 字节 Base64 密钥。PowerShell 7 或较新的 .NET 环境可执行：
+服务端必须配置两个彼此独立的高熵密钥：`APP_ENCRYPTION_KEY` 用于数据库敏感字段加密，`CODEXNOTIF_ACCESS_KEY` 用于拒绝未授权的 API 请求。不要复用二者。
+
+先为服务端与 Windows 客户端生成共同的访问密钥。脚本只把密钥写入当前 Windows 用户环境变量和剪贴板，不会打印或写入仓库：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\Set-CodexNotifAccessKey.ps1
+$env:CODEXNOTIF_ACCESS_KEY = [Environment]::GetEnvironmentVariable(
+  'CODEXNOTIF_ACCESS_KEY',
+  'User'
+)
+```
+
+再单独生成服务端使用的 32 字节 Base64 加密密钥。PowerShell 7 或较新的 .NET 环境可执行：
 
 ```powershell
 $keyBytes = New-Object byte[] 32
@@ -89,6 +101,7 @@ openssl rand -base64 32
 ```powershell
 $env:APP_ENCRYPTION_KEY = '<BASE64_32_BYTE_KEY>'
 $env:ADMIN_SETUP_TOKEN = '<RANDOM_ADMIN_TOKEN>'
+$env:CODEXNOTIF_ACCESS_KEY = '<GENERATED_SECRET>'
 $env:NOTIFICATION_MODE = 'log'
 $env:SERVER_PORT = '27843'
 mvn -f server/app/pom.xml spring-boot:run
@@ -97,7 +110,10 @@ mvn -f server/app/pom.xml spring-boot:run
 另开终端检查：
 
 ```powershell
-curl.exe http://localhost:27843/health
+$headers = @{
+  'X-CodexNotif-Access-Key' = $env:CODEXNOTIF_ACCESS_KEY
+}
+Invoke-RestMethod http://localhost:27843/health -Headers $headers
 ```
 
 服务默认只监听 `127.0.0.1:27843`。`27843` 是本公开版的默认端口；可以通过 `SERVER_PORT` 修改，但桌面端、Nginx 和 Microsoft 回调地址必须同步。
@@ -111,6 +127,7 @@ curl.exe http://localhost:27843/health
 ```powershell
 $env:APP_ENCRYPTION_KEY = '<BASE64_32_BYTE_KEY>'
 $env:ADMIN_SETUP_TOKEN = '<RANDOM_ADMIN_TOKEN>'
+$env:CODEXNOTIF_ACCESS_KEY = '<GENERATED_SECRET>'
 $env:NOTIFICATION_MODE = 'email'
 $env:EMAIL_PROVIDER = 'smtp'
 $env:SMTP_HOST = 'smtp.example.com'
@@ -139,7 +156,21 @@ dotnet build desktop/app/AgentPager.csproj -c Release
 dotnet publish desktop/app/AgentPager.csproj -c Release --self-contained false -o desktop/app/bin/Release/net8.0-windows/publish
 ```
 
-最终程序为 `desktop/app/bin/Release/net8.0-windows/publish/CodexNotif.exe`。打开程序后，在“服务器设置”中填写完整的 HTTP(S) 服务地址并点击“保存并测试”。地址会保存到当前用户的 `%LOCALAPPDATA%\CodexNotif\settings.json`，桌面界面和后台 Codex 完成通知共用该值。
+最终程序为 `desktop/app/bin/Release/net8.0-windows/publish/CodexNotif.exe`。打开程序前，必须让 Windows 使用与服务端完全相同的 `CODEXNOTIF_ACCESS_KEY`。推荐在仓库根目录运行：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\Set-CodexNotifAccessKey.ps1
+```
+
+脚本会生成密钥、设置当前用户环境变量并复制到剪贴板；把剪贴板内容粘贴到宝塔的同名环境变量。如果密钥先在服务器生成，则先复制服务器密钥，再运行：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\Set-CodexNotifAccessKey.ps1 -UseClipboard
+```
+
+访问密钥不会写入 `%LOCALAPPDATA%\CodexNotif\settings.json`。修改环境变量后必须完全退出并重新打开 CodexNotif 和 Codex。
+
+打开程序后，在“服务器设置”中填写完整的 HTTP(S) 服务地址并点击“保存并测试”。地址会保存到当前用户的 `%LOCALAPPDATA%\CodexNotif\settings.json`，桌面界面和后台 Codex 完成通知共用该值。“保存并测试”会同时验证服务器访问密钥；已绑定设备还会验证 Device Token。
 
 服务器地址按以下优先级解析：
 
@@ -159,13 +190,14 @@ dotnet publish desktop/app/AgentPager.csproj -c Release --self-contained false -
 
 打开 `CodexNotif.exe` 后：
 
-1. 在“服务器设置”中填写服务地址，点击“保存并测试”，确认连接正常；
-2. 填写接收提醒的邮箱；
-3. 打开验证邮件中的链接；
-4. 回到桌面端等待绑定完成；
-5. 点击“启用 Codex 监听”；
-6. 同意程序备份并更新当前用户的 `.codex/config.toml`；
-7. 完全退出并重新打开 Codex。
+1. 确认界面显示访问密钥已从环境变量加载；
+2. 在“服务器设置”中填写服务地址，点击“保存并测试”，确认服务器验证通过；
+3. 填写接收提醒的邮箱；
+4. 打开验证邮件中的链接；
+5. 回到桌面端等待绑定完成；
+6. 点击“启用 Codex 监听”；
+7. 同意程序备份并更新当前用户的 `.codex/config.toml`；
+8. 完全退出并重新打开 Codex。
 
 “恢复默认”会清除客户端保存的地址，然后重新使用环境变量或内置本机地址。更改服务器地址不会删除已保存的邮箱绑定和 Device Token；如果切换到另一台服务器，应使用“发送测试通知”确认原绑定在新服务器上仍然有效。
 
@@ -217,7 +249,7 @@ Codex 只在主任务一轮完成时调用该命令；子 Agent 的内部结束�
 
 ## 6. 端到端验证
 
-1. `curl http://localhost:27843/health` 或生产 HTTPS `/health` 返回正常；
+1. 使用带 `X-CodexNotif-Access-Key` 请求头的可信 HTTP 工具访问本机或生产 HTTPS `/health` 并返回正常；
 2. Windows 客户端显示服务器正常并完成邮箱绑定；
 3. Android App 的 QQ IMAP 测试成功，后台通知栏显示最近检查时间持续更新；
 4. 在 Codex 中执行一个很短的任务，等待主任务停止；
@@ -243,11 +275,11 @@ Codex 只在主任务一轮完成时调用该命令；子 Agent 的内部结束�
    java -jar <DEPLOY_DIR>/codexnotif-server.jar
    ```
 
-4. 从 `server/deploy/baota/环境变量-MicrosoftGraph.example.txt` 或 `环境变量-SMTP备用.example.txt` 复制变量到宝塔项目设置，并替换所有占位符。
+4. 从 `server/deploy/baota/环境变量-MicrosoftGraph.example.txt` 或 `环境变量-SMTP备用.example.txt` 复制变量到宝塔项目设置，并替换所有占位符；`CODEXNOTIF_ACCESS_KEY` 必须与 Windows 客户端完全一致。
 5. 为站点 `notify.example.com` 申请 HTTPS 证书。
 6. 把 `server/deploy/baota/nginx-location.conf` 中的 `location` 配置加入站点。
 7. Java 服务只监听 `127.0.0.1:27843`；安全组和防火墙只开放 80/443，不要直接公开 27843。
-8. 在服务器本机执行 `curl http://127.0.0.1:27843/health`，再从外部执行 `curl https://notify.example.com/health`。
+8. 在服务器本机和外部 HTTPS 分别检查 `/health`，两次请求都必须携带 `X-CodexNotif-Access-Key`；不要把真实密钥写入命令历史或截图。
 9. 将 `<DEPLOY_DIR>/data` 仅授权给 Java 项目用户，并定期加密备份 H2 数据库。
 10. 在宝塔中设置进程异常重启和开机启动，并监控磁盘、Java 日志和 `/health`。
 
@@ -310,7 +342,11 @@ Android/HyperOS 仍可能在用户“强行停止”、厂商深度清理或重�
 
 ### 服务健康，但 Windows 客户端连接失败
 
-检查 `CODEXNOTIF_SERVER_URL` 是否包含正确协议且没有额外路径；修改用户级环境变量后必须重启客户端。生产环境验证 HTTPS 证书链和 Nginx `/health`。
+检查 `CODEXNOTIF_SERVER_URL` 是否包含正确协议且没有额外路径；再确认 `CODEXNOTIF_ACCESS_KEY` 已配置、长度不少于 32 个字符并与服务端完全一致。修改用户级环境变量后必须重启客户端和 Codex。生产环境还要验证 HTTPS 证书链和带访问密钥头的 Nginx `/health`。
+
+### 服务端启动失败并提示 CODEXNOTIF_ACCESS_KEY
+
+这是失败关闭保护：缺失、过短或含空白的访问密钥会阻止服务启动。使用 `tools/Set-CodexNotifAccessKey.ps1` 生成密钥并同步到宝塔；不要把真实值放进 `.env`、README、截图或 Git。轮换该密钥后，所有 Windows 客户端必须同步新值并重启，原有 Device Token 不会因此改变。
 
 ### 绑定邮件收不到
 
@@ -336,6 +372,7 @@ Android/HyperOS 仍可能在用户“强行停止”、厂商深度清理或重�
 
 - 任何 `.env`、真实邮箱密码、QQ 授权码、Graph 客户端密码、Token、证书和私钥都不要提交到 Git；
 - 生产服务只通过 HTTPS 暴露，Java 端口保持回环监听；
+- `CODEXNOTIF_ACCESS_KEY` 至少 32 个字符，只保存在宝塔环境变量和 Windows 用户环境变量中；服务端除一次性邮箱验证链接外会保护 `/health` 与全部 `/api/v1/**`；
 - `APP_ENCRYPTION_KEY` 使用独立备份保存，泄露时需要更换并重新绑定/授权；
 - `ADMIN_SETUP_TOKEN` 使用高熵随机值，完成管理操作后轮换；
 - 给 H2 数据目录、应用目录和日志设置最小权限；
