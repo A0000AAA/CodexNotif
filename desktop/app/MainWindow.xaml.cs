@@ -45,7 +45,9 @@ public partial class MainWindow : Window
             serverConfigurationError = ex.Message;
         }
 
-        _relay = new RelayApiClient(server.BaseUrl);
+        _relay = new RelayApiClient(
+            server.BaseUrl,
+            ServerAccessKeyResolver.ReadOptional());
         ServerUrlTextBox.Text = serverConfigurationError is null
             ? server.BaseUrl
             : _settings.ServerBaseUrl;
@@ -53,6 +55,7 @@ public partial class MainWindow : Window
         ServerSettingsStatusText.Text = serverConfigurationError is null
             ? "当前地址已加载。"
             : "已保存的地址无效：" + serverConfigurationError;
+        UpdateAccessKeyStatus();
 
         DeviceIdText.Text = _deviceId;
 
@@ -487,13 +490,16 @@ public partial class MainWindow : Window
 
     private void ReplaceRelay(ServerAddressResolution server)
     {
-        var replacement = new RelayApiClient(server.BaseUrl);
+        var replacement = new RelayApiClient(
+            server.BaseUrl,
+            ServerAccessKeyResolver.ReadOptional());
         var previous = _relay;
         _relay = replacement;
         previous.Dispose();
 
         ServerUrlTextBox.Text = server.BaseUrl;
         UpdateServerSource(server);
+        UpdateAccessKeyStatus();
     }
 
     private void UpdateServerSource(ServerAddressResolution server)
@@ -515,6 +521,13 @@ public partial class MainWindow : Window
         RestoreServerButton.IsEnabled = enabled;
     }
 
+    private void UpdateAccessKeyStatus()
+    {
+        AccessKeyStatusText.Text = _relay.HasValidAccessKey
+            ? $"访问密钥：已从环境变量 {ServerAccessKeyResolver.EnvironmentVariableName} 加载。"
+            : $"访问密钥：未配置有效的 {ServerAccessKeyResolver.EnvironmentVariableName}。";
+    }
+
     private async Task<bool> CheckServerAsync()
     {
         ServerStatusText.Text =
@@ -522,15 +535,25 @@ public partial class MainWindow : Window
 
         try
         {
-            var ok = await _relay.HealthAsync();
+            var authentication = await _relay.CheckAuthenticationAsync(
+                _deviceId,
+                _settings.DeviceToken);
+            var ok = authentication.AccessKeyAuthenticated;
 
             ServerStatusText.Text = ok
                 ? "服务器在线"
                 : "服务器异常";
+            AccessKeyStatusText.Text = authentication.DeviceAuthenticated
+                ? "访问密钥：服务器验证通过；设备 Token 验证通过。"
+                : string.IsNullOrWhiteSpace(_settings.DeviceToken)
+                    ? "访问密钥：服务器验证通过；设备尚未绑定。"
+                    : "访问密钥：服务器验证通过；设备 Token 未通过，请重新绑定。";
 
             AddEvent(
                 ok ? "服务器在线" : "服务器异常",
-                _relay.ServerBaseUrl);
+                authentication.DeviceAuthenticated
+                    ? _relay.ServerBaseUrl + " · 双层认证通过"
+                    : _relay.ServerBaseUrl + " · 访问密钥通过");
 
             return ok;
         }
@@ -538,6 +561,7 @@ public partial class MainWindow : Window
         {
             ServerStatusText.Text =
                 "服务器不可用";
+            UpdateAccessKeyStatus();
 
             StatusText.Text =
                 "服务器检查失败：" + ex.Message;

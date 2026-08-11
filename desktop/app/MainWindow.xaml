@@ -171,6 +171,11 @@
                                     <TextBlock x:Name="ServerSourceText"
                                                TextWrapping="Wrap"
                                                FontWeight="SemiBold"/>
+                                    <TextBlock x:Name="AccessKeyStatusText"
+                                               Margin="0,5,0,0"
+                                               Text="访问密钥：等待检查。"
+                                               TextWrapping="Wrap"
+                                               Foreground="{StaticResource TextSecondaryBrush}"/>
                                     <TextBlock x:Name="ServerSettingsStatusText"
                                                Margin="0,5,0,0"
                                                Text="等待检查服务器。"

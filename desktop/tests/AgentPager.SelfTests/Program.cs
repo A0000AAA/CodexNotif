@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Diagnostics;
+using System.Net;
 using System.Text;
 using AgentPager.Models;
 using AgentPager.Services;
@@ -69,10 +70,88 @@ Run("invalid server URLs are rejected", () =>
     }
 });
 
+Run("access key resolver rejects missing and unsafe values", () =>
+{
+    foreach (var invalid in new string?[]
+             {
+                 null,
+                 "",
+                 "short",
+                 " " + new string('x', 32),
+                 new string('x', 32) + "\r\n"
+             })
+    {
+        AssertThrows<InvalidOperationException>(() =>
+            ServerAccessKeyResolver.Validate(invalid));
+    }
+});
+
+await RunAsync("relay rejects a missing access key before network access", async () =>
+{
+    var handler = new CaptureHttpHandler();
+    using var relay = new RelayApiClient(
+        "https://notify.example.com",
+        null,
+        handler);
+
+    try
+    {
+        await relay.HealthAsync();
+        throw new Exception("missing access key was accepted");
+    }
+    catch (InvalidOperationException)
+    {
+        // Expected: configuration errors must fail before HTTP is attempted.
+    }
+
+    Assert(handler.Requests.Count == 0, "missing key must not reach HTTP");
+});
+
+await RunAsync("relay sends access key on every API request", async () =>
+{
+    var handler = new CaptureHttpHandler();
+    var accessKey = new string('x', 32);
+    using var relay = new RelayApiClient(
+        "https://notify.example.com",
+        accessKey,
+        handler);
+
+    Assert(await relay.HealthAsync(), "health response must be parsed");
+    await relay.CreateBindingAsync(
+        "D_TEST",
+        "user@example.test",
+        "device-token");
+    await relay.GetBindingStatusAsync("B_TEST", "poll-token");
+    await relay.SendEventAsync(
+        new AgentEvent(
+            "D_TEST",
+            "codex",
+            "agent-turn-complete",
+            DateTimeOffset.UtcNow),
+        "device-token");
+    var auth = await relay.CheckAuthenticationAsync(
+        "D_TEST",
+        "device-token");
+
+    Assert(auth.AccessKeyAuthenticated, "access key status must be parsed");
+    Assert(auth.DeviceAuthenticated, "device token status must be parsed");
+    Assert(handler.Requests.Count == 5, "all five API calls must be captured");
+    Assert(
+        handler.Requests.All(request => request.AccessKey == accessKey),
+        "every API request must carry the deployment access key");
+    Assert(
+        handler.Requests
+            .Where(request => request.Path is "/api/v1/events" or "/api/v1/auth/check")
+            .All(request => request.AuthorizationScheme == "Bearer"
+                            && request.AuthorizationParameter == "device-token"),
+        "event and authentication checks must carry the device token");
+});
+
 Run("relay client keeps the explicit normalized server URL", () =>
 {
     using var relay = new RelayApiClient(
-        "https://notify.example.com/base/");
+        "https://notify.example.com/base/",
+        new string('x', 32));
 
     Assert(
         relay.ServerBaseUrl == "https://notify.example.com/base",
@@ -1243,6 +1322,49 @@ static async Task RunPowerShellScriptAsync(
             + await process.StandardError.ReadToEndAsync());
     }
 }
+
+sealed class CaptureHttpHandler : HttpMessageHandler
+{
+    public List<CapturedRequest> Requests { get; } = [];
+
+    protected override Task<HttpResponseMessage> SendAsync(
+        HttpRequestMessage request,
+        CancellationToken cancellationToken)
+    {
+        request.Headers.TryGetValues(
+            ServerAccessKeyResolver.HeaderName,
+            out var accessKeyValues);
+
+        Requests.Add(new CapturedRequest(
+            request.RequestUri?.AbsolutePath ?? "",
+            accessKeyValues?.SingleOrDefault(),
+            request.Headers.Authorization?.Scheme,
+            request.Headers.Authorization?.Parameter));
+
+        var json = request.RequestUri?.AbsolutePath switch
+        {
+            "/health" => "{\"ok\":true}",
+            "/api/v1/bind/create" =>
+                "{\"bindId\":\"B_TEST\",\"pollToken\":\"poll-token\",\"expiresAt\":\"2030-01-01T00:00:00Z\"}",
+            "/api/v1/bind/B_TEST" =>
+                "{\"status\":\"verified\",\"deviceToken\":\"device-token\",\"email\":\"user@example.test\"}",
+            "/api/v1/auth/check" =>
+                "{\"accessKeyAuthenticated\":true,\"deviceAuthenticated\":true}",
+            _ => "{\"ok\":true}"
+        };
+
+        return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(json, Encoding.UTF8, "application/json")
+        });
+    }
+}
+
+sealed record CapturedRequest(
+    string Path,
+    string? AccessKey,
+    string? AuthorizationScheme,
+    string? AuthorizationParameter);
 
 sealed class TempDirectory : IDisposable
 {

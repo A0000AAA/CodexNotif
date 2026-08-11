@@ -122,7 +122,9 @@ public partial class App : Application
             var settings = new SettingsService().Load();
             var server = ServerAddressResolver.Resolve(
                 settings.ServerBaseUrl);
-            using var relay = new RelayApiClient(server.BaseUrl);
+            using var relay = new RelayApiClient(
+                server.BaseUrl,
+                ServerAccessKeyResolver.ReadOptional());
             using var timeout = new CancellationTokenSource(
                 TimeSpan.FromSeconds(25));
 
@@ -162,7 +164,9 @@ public partial class App : Application
             var settings = new SettingsService().Load();
             var server = ServerAddressResolver.Resolve(
                 settings.ServerBaseUrl);
-            using var relay = new RelayApiClient(server.BaseUrl);
+            using var relay = new RelayApiClient(
+                server.BaseUrl,
+                ServerAccessKeyResolver.ReadOptional());
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(25));
 
             await CodexStopHookRunner.RunAsync(

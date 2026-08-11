@@ -9,16 +9,31 @@ namespace AgentPager.Services;
 public sealed class RelayApiClient : IDisposable
 {
     public RelayApiClient(string serverBaseUrl)
+        : this(
+            serverBaseUrl,
+            ServerAccessKeyResolver.ReadOptional())
+    {
+    }
+
+    public RelayApiClient(
+        string serverBaseUrl,
+        string? accessKey,
+        HttpMessageHandler? handler = null)
     {
         ServerBaseUrl = ServerAddressResolver.Normalize(serverBaseUrl);
+        _accessKey = accessKey;
+        _httpClient = handler is null
+            ? new HttpClient()
+            : new HttpClient(handler, disposeHandler: true);
+        _httpClient.Timeout = TimeSpan.FromSeconds(20);
     }
 
     public string ServerBaseUrl { get; }
+    public bool HasValidAccessKey =>
+        ServerAccessKeyResolver.IsValid(_accessKey);
 
-    private readonly HttpClient _httpClient = new()
-    {
-        Timeout = TimeSpan.FromSeconds(20)
-    };
+    private readonly string? _accessKey;
+    private readonly HttpClient _httpClient;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -28,8 +43,9 @@ public sealed class RelayApiClient : IDisposable
     public async Task<bool> HealthAsync(
         CancellationToken cancellationToken = default)
     {
-        using var response = await _httpClient.GetAsync(
-            ServerBaseUrl + "/health",
+        using var request = CreateRequest(HttpMethod.Get, "/health");
+        using var response = await _httpClient.SendAsync(
+            request,
             cancellationToken);
 
         if (!response.IsSuccessStatusCode)
@@ -48,17 +64,10 @@ public sealed class RelayApiClient : IDisposable
         string? currentDeviceToken,
         CancellationToken cancellationToken = default)
     {
-        using var request = new HttpRequestMessage(
+        using var request = CreateRequest(
             HttpMethod.Post,
-            ServerBaseUrl + "/api/v1/bind/create");
-
-        if (!string.IsNullOrWhiteSpace(currentDeviceToken))
-        {
-            request.Headers.Authorization =
-                new AuthenticationHeaderValue(
-                    "Bearer",
-                    currentDeviceToken);
-        }
+            "/api/v1/bind/create",
+            currentDeviceToken);
 
         request.Content = JsonContent.Create(new
         {
@@ -93,8 +102,9 @@ public sealed class RelayApiClient : IDisposable
             + "?pollToken="
             + Uri.EscapeDataString(pollToken);
 
-        using var response = await _httpClient.GetAsync(
-            url,
+        using var request = CreateRequest(HttpMethod.Get, url);
+        using var response = await _httpClient.SendAsync(
+            request,
             cancellationToken);
 
         await EnsureSuccessAsync(
@@ -117,14 +127,10 @@ public sealed class RelayApiClient : IDisposable
             throw new InvalidOperationException(
                 "当前设备尚未绑定邮箱。");
 
-        using var request = new HttpRequestMessage(
+        using var request = CreateRequest(
             HttpMethod.Post,
-            ServerBaseUrl + "/api/v1/events");
-
-        request.Headers.Authorization =
-            new AuthenticationHeaderValue(
-                "Bearer",
-                deviceToken);
+            "/api/v1/events",
+            deviceToken);
 
         request.Content = JsonContent.Create(new
         {
@@ -141,6 +147,53 @@ public sealed class RelayApiClient : IDisposable
         await EnsureSuccessAsync(
             response,
             cancellationToken);
+    }
+
+    public async Task<AuthCheckResponse> CheckAuthenticationAsync(
+        string deviceId,
+        string? deviceToken,
+        CancellationToken cancellationToken = default)
+    {
+        var path = "/api/v1/auth/check?deviceId="
+                   + Uri.EscapeDataString(deviceId);
+        using var request = CreateRequest(
+            HttpMethod.Get,
+            path,
+            deviceToken);
+        using var response = await _httpClient.SendAsync(
+            request,
+            cancellationToken);
+
+        await EnsureSuccessAsync(response, cancellationToken);
+
+        return await response.Content.ReadFromJsonAsync<AuthCheckResponse>(
+                   JsonOptions,
+                   cancellationToken)
+               ?? throw new InvalidOperationException(
+                   "服务器没有返回有效的认证状态。");
+    }
+
+    private HttpRequestMessage CreateRequest(
+        HttpMethod method,
+        string pathOrUrl,
+        string? deviceToken = null)
+    {
+        string accessKey = ServerAccessKeyResolver.Validate(_accessKey);
+        string url = Uri.IsWellFormedUriString(
+            pathOrUrl,
+            UriKind.Absolute)
+            ? pathOrUrl
+            : ServerBaseUrl + pathOrUrl;
+        var request = new HttpRequestMessage(method, url);
+        request.Headers.Add(ServerAccessKeyResolver.HeaderName, accessKey);
+
+        if (!string.IsNullOrWhiteSpace(deviceToken))
+        {
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", deviceToken);
+        }
+
+        return request;
     }
 
     private static async Task EnsureSuccessAsync(
