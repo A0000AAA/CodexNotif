@@ -290,7 +290,7 @@ Run: `powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/audit_public
 
 Expected: 测试全部 PASS；构建 0 警告、0 错误；三次审计均 `PASS: no blocked public data`；Git 中没有构建产物。
 
-- [ ] **Step 5: 本地提交并在审计通过后上传**
+- [x] **Step 5: 本地提交并在审计通过后上传**
 
 ```powershell
 git add -- desktop/app/MainWindow.xaml desktop/app/MainWindow.xaml.cs README.md docs/superpowers/plans/2026-08-11-desktop-server-settings.md
