@@ -26,7 +26,45 @@ $lineRules = [ordered]@{
 }
 $emailPattern = '(?i)\b[A-Z0-9._%+-]+@([A-Z0-9.-]+\.[A-Z]{2,})\b'
 $ipv4Pattern = '(?<!\d)(?:\d{1,3}\.){3}\d{1,3}(?!\d)'
-$longSecretPattern = '(?<![A-Za-z0-9])(?:[A-Fa-f0-9]{64}|[A-Za-z0-9+/]{48,}={0,2})(?![A-Za-z0-9])'
+$urlPattern = '(?i)https?://[A-Z0-9.-]+'
+$longSecretPattern = '(?<![A-Za-z0-9])(?:[A-Fa-f0-9]{64}|(?=[A-Za-z0-9+_=-]{40,}(?![A-Za-z0-9]))(?=[A-Za-z0-9+_=-]*[A-Z])(?=[A-Za-z0-9+_=-]*[a-z])(?=[A-Za-z0-9+_=-]*[0-9])[A-Za-z0-9+_=-]{40,})(?![A-Za-z0-9])'
+$allowedUrlHosts = @(
+    '127.0.0.1',
+    'localhost',
+    'aka.ms',
+    'api.flutter.dev',
+    'api.nuget.org',
+    'dart.dev',
+    'developer.android.com',
+    'developer.apple.com',
+    'developers.openai.com',
+    'docs.flutter.dev',
+    'docs.gradle.org',
+    'docs.microsoft.com',
+    'flutter.dev',
+    'forums.swift.org',
+    'fsf.org',
+    'graph.microsoft.com',
+    'github.com',
+    'go.microsoft.com',
+    'h2database.com',
+    'kotlinlang.org',
+    'learn.microsoft.com',
+    'login.microsoftonline.com',
+    'maven.apache.org',
+    'opensource.org',
+    'platform.openai.com',
+    'pub.dev',
+    'schema.org',
+    'schemas.android.com',
+    'schemas.microsoft.com',
+    'services.gradle.org',
+    'spdx.org',
+    'spring.io',
+    'www.gnu.org',
+    'www.apple.com',
+    'www.w3.org'
+)
 
 function Add-Finding {
     param(
@@ -66,6 +104,15 @@ function Test-EmailAllowed {
     return $Address -match '(?i)@(example\.com|example\.test|users\.noreply\.github\.com)$'
 }
 
+function Test-UrlAllowed {
+    param([string]$Url)
+
+    $urlHost = ([Uri]$Url).Host.ToLowerInvariant()
+    return $urlHost -in $allowedUrlHosts -or
+        $urlHost -eq 'example.com' -or
+        $urlHost.EndsWith('.example.com', [StringComparison]::Ordinal)
+}
+
 function Test-Text {
     param(
         [string]$Path,
@@ -80,6 +127,9 @@ function Test-Text {
     for ($index = 0; $index -lt $lines.Count; $index++) {
         $line = $lines[$index]
         $lineNumber = $index + 1
+        $isAssetFilename =
+            $normalized -match '(?i)\.xcassets/.+/Contents\.json$' -and
+            $line -match '"filename"\s*:'
 
         if (-not $containsRuleDefinitions) {
             foreach ($entry in $lineRules.GetEnumerator()) {
@@ -89,15 +139,27 @@ function Test-Text {
             }
         }
 
-        foreach ($match in [regex]::Matches($line, $emailPattern)) {
-            if (-not (Test-EmailAllowed -Address $match.Value -Path $normalized)) {
-                Add-Finding -Rule 'non_example_email' -Path $normalized -Line $lineNumber
+        if (-not $isAssetFilename) {
+            foreach ($match in [regex]::Matches($line, $emailPattern)) {
+                if (-not (Test-EmailAllowed -Address $match.Value -Path $normalized)) {
+                    Add-Finding -Rule 'non_example_email' -Path $normalized -Line $lineNumber
+                }
             }
         }
 
         foreach ($match in [regex]::Matches($line, $ipv4Pattern)) {
             if ($match.Value -notin @('127.0.0.1', '0.0.0.0', '192.0.2.1')) {
                 Add-Finding -Rule 'non_example_ipv4' -Path $normalized -Line $lineNumber
+            }
+        }
+
+        if (-not $normalized.StartsWith(
+                'mobile/third_party/',
+                [StringComparison]::OrdinalIgnoreCase)) {
+            foreach ($match in [regex]::Matches($line, $urlPattern)) {
+                if (-not (Test-UrlAllowed -Url $match.Value)) {
+                    Add-Finding -Rule 'non_approved_url' -Path $normalized -Line $lineNumber
+                }
             }
         }
 
@@ -138,11 +200,21 @@ function Get-GitBlobText {
     return ($content -join "`n")
 }
 
+function Get-IndexBlobText {
+    param([string]$Path)
+
+    $content = & git show ":$Path" 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        throw "无法读取暂存对象：$Path"
+    }
+    return ($content -join "`n")
+}
+
 Push-Location $repository
 try {
     switch ($Scope) {
         'Worktree' {
-            $paths = @(& git ls-files --cached --others --exclude-standard)
+            $paths = @(& git -c core.quotepath=false ls-files --cached --others --exclude-standard)
             foreach ($path in $paths) {
                 if (-not [string]::IsNullOrWhiteSpace($path)) {
                     Test-WorktreeFile -Path $path
@@ -150,7 +222,7 @@ try {
             }
         }
         'Index' {
-            $paths = @(& git diff --cached --name-only --diff-filter=ACMR)
+            $paths = @(& git -c core.quotepath=false diff --cached --name-only --diff-filter=ACMR)
             foreach ($path in $paths) {
                 if ([string]::IsNullOrWhiteSpace($path)) {
                     continue
@@ -161,12 +233,12 @@ try {
                     continue
                 }
 
-                $text = Get-GitBlobText -Object ":$path"
+                $text = Get-IndexBlobText -Path $path
                 Test-Text -Path $path -Text $text
             }
         }
         'History' {
-            $objects = @(& git rev-list --objects --all)
+            $objects = @(& git -c core.quotepath=false rev-list --objects --all)
             $seen = [Collections.Generic.HashSet[string]]::new()
             foreach ($record in $objects) {
                 if ($record -notmatch '^([0-9a-f]{40,64})\s+(.+)$') {

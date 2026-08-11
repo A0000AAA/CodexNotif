@@ -1,0 +1,77 @@
+server:
+  address: 127.0.0.1
+  port: ${SERVER_PORT:27843}
+  forward-headers-strategy: framework
+
+spring:
+  application:
+    name: codexnotif-server
+
+  datasource:
+    url: "jdbc:h2:file:${DB_PATH:./data/codexnotif};DB_CLOSE_ON_EXIT=FALSE;AUTO_RECONNECT=TRUE"
+    driver-class-name: org.h2.Driver
+    username: ${DB_USERNAME:sa}
+    password: ${DB_PASSWORD:}
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: update
+
+  h2:
+    console:
+      enabled: false
+
+  mail:
+    host: ${SMTP_HOST:}
+    port: ${SMTP_PORT:587}
+    username: ${SMTP_USERNAME:}
+    password: ${SMTP_PASSWORD:}
+    default-encoding: UTF-8
+    properties:
+      mail:
+        smtp:
+          auth: ${SMTP_AUTH:true}
+          starttls:
+            enable: ${SMTP_STARTTLS_ENABLE:true}
+            required: ${SMTP_STARTTLS_REQUIRED:false}
+          ssl:
+            enable: ${SMTP_SSL_ENABLE:false}
+          connectiontimeout: 5000
+          timeout: 10000
+          writetimeout: 10000
+
+app:
+  public-base-url: ${PUBLIC_BASE_URL:http://localhost:27843}
+  bind-ttl-seconds: ${BIND_TTL_SECONDS:600}
+
+  # email | log
+  notification-mode: ${NOTIFICATION_MODE:email}
+
+  # Critical: Base64 encoded 32-byte key. Used to encrypt temporary device tokens
+  # and Microsoft refresh tokens stored in H2.
+  encryption-key: ${APP_ENCRYPTION_KEY:}
+
+  # Protects Microsoft setup/test endpoints.
+  admin-setup-token: ${ADMIN_SETUP_TOKEN:}
+
+  email:
+    # microsoft | smtp
+    provider: ${EMAIL_PROVIDER:microsoft}
+    from-name: ${MAIL_FROM_NAME:CodexNotif}
+    subject-prefix: ${MAIL_SUBJECT_PREFIX:[CodexNotif]}
+
+    smtp:
+      from: ${SMTP_FROM:}
+
+    microsoft:
+      enabled: ${MICROSOFT_ENABLED:false}
+      tenant: ${MICROSOFT_TENANT:common}
+      client-id: ${MICROSOFT_CLIENT_ID:}
+      client-secret: ${MICROSOFT_CLIENT_SECRET:}
+      redirect-uri: ${MICROSOFT_REDIRECT_URI:http://localhost:27843/api/v1/admin/microsoft/callback}
+
+logging:
+  level:
+    root: INFO
+    org.codexnotif.server: INFO

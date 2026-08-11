@@ -1,0 +1,269 @@
+<Window x:Class="AgentPager.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Agent Pager"
+        Width="900"
+        Height="700"
+        MinWidth="820"
+        MinHeight="620"
+        WindowStartupLocation="CenterScreen">
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <Grid Margin="28">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="18"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="18"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <!-- Header -->
+            <Grid Grid.Row="0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel>
+                    <TextBlock Text="Agent Pager"
+                               FontSize="30"
+                               FontWeight="Bold"/>
+
+                    <TextBlock Margin="0,6,0,0"
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               Text="Codex 完成后，通过已配置的 CodexNotif 服务将通知发送到你的邮箱。"/>
+                </StackPanel>
+
+                <Border Grid.Column="1"
+                        Padding="12,8"
+                        Background="#EEF4FF"
+                        CornerRadius="9"
+                        VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal">
+                        <Ellipse Width="8"
+                                 Height="8"
+                                 Fill="{StaticResource AccentBrush}"
+                                 Margin="0,0,7,0"/>
+                        <TextBlock x:Name="ServerStatusText"
+                                   Text="正在检查服务器..."
+                                   Foreground="{StaticResource AccentBrush}"
+                                   FontWeight="SemiBold"/>
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <!-- Status cards -->
+            <Grid Grid.Row="2">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="12"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="12"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0"
+                        Style="{StaticResource CardStyle}">
+                    <StackPanel>
+                        <TextBlock Text="Codex 完成通知"
+                                   Foreground="{StaticResource TextSecondaryBrush}"/>
+                        <TextBlock x:Name="DetectorStatusText"
+                                   Margin="0,7,0,0"
+                                   Text="尚未配置"
+                                   FontSize="18"
+                                   FontWeight="SemiBold"/>
+                        <TextBlock x:Name="DetectorDetailText"
+                                   Margin="0,5,0,0"
+                                   Text="启用后由 Codex 原生完成事件触发邮件"
+                                   Foreground="{StaticResource WarningBrush}"
+                                   TextWrapping="Wrap"/>
+                        <Button x:Name="EnableCodexNotifyButton"
+                                Margin="0,12,0,0"
+                                HorizontalAlignment="Left"
+                                Content="启用 Codex 监听"
+                                Click="EnableCodexNotifyButton_Click"
+                                Style="{StaticResource SecondaryButtonStyle}"/>
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Column="2"
+                        Style="{StaticResource CardStyle}">
+                    <StackPanel>
+                        <TextBlock Text="通知邮箱"
+                                   Foreground="{StaticResource TextSecondaryBrush}"/>
+                        <TextBlock x:Name="EmailSummaryText"
+                                   Margin="0,7,0,0"
+                                   Text="尚未绑定"
+                                   FontSize="18"
+                                   FontWeight="SemiBold"
+                                   TextWrapping="Wrap"/>
+                        <TextBlock x:Name="BindingSummaryText"
+                                   Margin="0,5,0,0"
+                                   Text="请输入邮箱并完成验证"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   TextWrapping="Wrap"/>
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Column="4"
+                        Style="{StaticResource CardStyle}">
+                    <StackPanel>
+                        <TextBlock Text="Device ID"
+                                   Foreground="{StaticResource TextSecondaryBrush}"/>
+                        <TextBlock x:Name="DeviceIdText"
+                                   Margin="0,7,0,0"
+                                   FontSize="14"
+                                   FontWeight="SemiBold"
+                                   TextWrapping="Wrap"/>
+                        <TextBlock Margin="0,5,0,0"
+                                   Text="每台电脑自动生成一个唯一 ID"
+                                   Foreground="{StaticResource TextSecondaryBrush}"/>
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <!-- Main -->
+            <Grid Grid.Row="4">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="1.05*"/>
+                    <ColumnDefinition Width="18"/>
+                    <ColumnDefinition Width="0.95*"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0">
+                    <!-- Binding -->
+                    <Border Style="{StaticResource CardStyle}">
+                        <StackPanel>
+                            <TextBlock Text="邮箱绑定"
+                                       FontSize="18"
+                                       FontWeight="SemiBold"/>
+
+                            <TextBlock Margin="0,5,0,16"
+                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       Text="第一次使用只需验证一次邮箱。更换邮箱时也在这里重新验证。"/>
+
+                            <TextBlock Text="接收通知的邮箱"/>
+
+                            <TextBox x:Name="EmailTextBox"
+                                     Margin="0,7,0,0"
+                                     ToolTip="例如 user@example.com"/>
+
+                            <Button x:Name="BindButton"
+                                    Margin="0,12,0,0"
+                                    Height="40"
+                                    Content="发送验证邮件"
+                                    Click="BindButton_Click"
+                                    Style="{StaticResource PrimaryButtonStyle}"/>
+
+                            <ProgressBar x:Name="BindingProgress"
+                                         Margin="0,12,0,0"
+                                         Height="4"
+                                         IsIndeterminate="True"
+                                         Visibility="Collapsed"/>
+
+                            <Border Margin="0,12,0,0"
+                                    Background="#F9FAFB"
+                                    CornerRadius="8"
+                                    Padding="12">
+                                <TextBlock x:Name="BindingStatusText"
+                                           Text="等待绑定。"
+                                           TextWrapping="Wrap"
+                                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                            </Border>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Actions -->
+                    <Border Margin="0,16,0,0"
+                            Style="{StaticResource CardStyle}">
+                        <StackPanel>
+                            <TextBlock Text="功能验证"
+                                       FontSize="18"
+                                       FontWeight="SemiBold"/>
+
+                            <TextBlock Margin="0,5,0,14"
+                                       Text="绑定成功后，可直接验证服务器邮件通知链路。"
+                                       Foreground="{StaticResource TextSecondaryBrush}"/>
+
+                            <WrapPanel>
+                                <Button x:Name="TestNotificationButton"
+                                        Content="发送测试通知"
+                                        Click="TestNotificationButton_Click"
+                                        Style="{StaticResource SecondaryButtonStyle}"
+                                        Margin="0,0,10,10"/>
+
+                                <Button x:Name="SimulateCompletedButton"
+                                        Content="模拟 Codex 完成"
+                                        Click="SimulateCompletedButton_Click"
+                                        Style="{StaticResource PrimaryButtonStyle}"
+                                        Margin="0,0,10,10"/>
+
+                                <Button Content="检查服务器"
+                                        Click="CheckServerButton_Click"
+                                        Style="{StaticResource SecondaryButtonStyle}"
+                                        Margin="0,0,10,10"/>
+                            </WrapPanel>
+
+                            <Border Margin="0,4,0,0"
+                                    Background="#F9FAFB"
+                                    CornerRadius="8"
+                                    Padding="12">
+                                <TextBlock x:Name="StatusText"
+                                           Text="客户端已启动。"
+                                           TextWrapping="Wrap"
+                                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                            </Border>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Privacy -->
+                    <Border Margin="0,16,0,0"
+                            Padding="16"
+                            Background="#F0FDF4"
+                            BorderBrush="#BBF7D0"
+                            BorderThickness="1"
+                            CornerRadius="12">
+                        <StackPanel>
+                            <TextBlock Text="MVP 隐私边界"
+                                       FontWeight="SemiBold"
+                                       Foreground="#166534"/>
+
+                            <TextBlock Margin="0,6,0,0"
+                                       TextWrapping="Wrap"
+                                       Foreground="#166534"
+                                       Text="当前只上传 Device ID、事件类型和时间。不上传 Prompt、源代码、Codex 对话或项目文件。"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <!-- Recent events -->
+                <Border Grid.Column="2"
+                        Style="{StaticResource CardStyle}">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="10"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <StackPanel>
+                            <TextBlock Text="最近事件"
+                                       FontSize="18"
+                                       FontWeight="SemiBold"/>
+
+                            <TextBlock Margin="0,5,0,0"
+                                       Text="用于验证绑定、服务器和通知链路。"
+                                       Foreground="{StaticResource TextSecondaryBrush}"/>
+                        </StackPanel>
+
+                        <ListBox Grid.Row="2"
+                                 x:Name="EventList"
+                                 BorderThickness="0"
+                                 Background="Transparent"/>
+                    </Grid>
+                </Border>
+            </Grid>
+        </Grid>
+    </ScrollViewer>
+</Window>
