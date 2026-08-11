@@ -54,4 +54,3 @@ if ($PSCmdlet.ShouldProcess(
     Write-Host '访问密钥已写入 Windows 用户环境变量并复制到剪贴板。密钥内容未输出。'
     Write-Host '请将剪贴板内容粘贴到服务器环境变量，然后重启服务器、CodexNotif 和 Codex。'
 }
-
