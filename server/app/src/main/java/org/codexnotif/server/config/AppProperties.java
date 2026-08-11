@@ -12,6 +12,7 @@ public class AppProperties {
     private String notificationMode = "email";
     private String encryptionKey;
     private String adminSetupToken;
+    private String accessKey;
 
     private final Email email = new Email();
 
@@ -29,6 +30,9 @@ public class AppProperties {
 
     public String getAdminSetupToken() { return adminSetupToken; }
     public void setAdminSetupToken(String adminSetupToken) { this.adminSetupToken = adminSetupToken; }
+
+    public String getAccessKey() { return accessKey; }
+    public void setAccessKey(String accessKey) { this.accessKey = accessKey; }
 
     public Email getEmail() { return email; }
 

@@ -55,6 +55,9 @@ app:
   # Protects Microsoft setup/test endpoints.
   admin-setup-token: ${ADMIN_SETUP_TOKEN:}
 
+  # Required on every API request except the one-time browser verification link.
+  access-key: ${CODEXNOTIF_ACCESS_KEY:}
+
   email:
     # microsoft | smtp
     provider: ${EMAIL_PROVIDER:microsoft}
