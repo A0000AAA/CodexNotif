@@ -270,7 +270,7 @@ private async void SaveServerButton_Click(object sender, RoutedEventArgs e)
 说明 GUI 配置路径、三层优先级、环境变量回退、后台生效需重启 Codex；所有示例
 只使用 `https://notify.example.com`，不得写入真实地址。
 
-- [ ] **Step 4: 运行完整验证与三重脱敏审计**
+- [x] **Step 4: 运行完整验证与三重脱敏审计**
 
 Run: `dotnet run --project desktop/tests/AgentPager.SelfTests/AgentPager.SelfTests.csproj`
 
