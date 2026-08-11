@@ -418,25 +418,49 @@ public partial class MainWindow : Window
         RoutedEventArgs e)
     {
         var previousBaseUrl = _settings.ServerBaseUrl;
+        var enteredAccessKey = AccessKeyPasswordBox.Password;
+        var accessKeyChanged = false;
         SetServerButtonsEnabled(false);
 
         try
         {
             var normalized = ServerAddressResolver.Normalize(
                 ServerUrlTextBox.Text);
+            string? validatedAccessKey = null;
+
+            if (!string.IsNullOrEmpty(enteredAccessKey))
+            {
+                validatedAccessKey =
+                    ServerAccessKeyResolver.Validate(enteredAccessKey);
+            }
+
             _settings.ServerBaseUrl = normalized;
             _settingsService.Save(_settings);
+
+            if (validatedAccessKey is not null)
+            {
+                ServerAccessKeyResolver.SaveForCurrentUser(
+                    validatedAccessKey);
+                AccessKeyPasswordBox.Clear();
+                accessKeyChanged = true;
+            }
 
             var server = ServerAddressResolver.Resolve(
                 _settings.ServerBaseUrl);
             ReplaceRelay(server);
             ServerSettingsStatusText.Text =
-                "服务器设置已保存，正在测试连接...";
+                accessKeyChanged
+                    ? "服务器地址与访问密钥已保存，正在验证..."
+                    : "服务器设置已保存，正在验证...";
 
             var ok = await CheckServerAsync();
             ServerSettingsStatusText.Text = ok
-                ? "服务器设置已保存，连接正常。"
-                : "服务器设置已保存，但当前无法连接。";
+                ? accessKeyChanged
+                    ? "服务器地址与访问密钥已保存，认证正常。"
+                    : "服务器设置已保存，认证正常。"
+                : accessKeyChanged
+                    ? "访问密钥已保存，但服务器认证失败；请确认宝塔使用相同密钥。"
+                    : "服务器设置已保存，但当前认证失败。";
         }
         catch (ArgumentException ex)
         {

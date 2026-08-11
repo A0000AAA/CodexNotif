@@ -156,19 +156,27 @@ dotnet build desktop/app/AgentPager.csproj -c Release
 dotnet publish desktop/app/AgentPager.csproj -c Release --self-contained false -o desktop/app/bin/Release/net8.0-windows/publish
 ```
 
-最终程序为 `desktop/app/bin/Release/net8.0-windows/publish/CodexNotif.exe`。打开程序前，必须让 Windows 使用与服务端完全相同的 `CODEXNOTIF_ACCESS_KEY`。推荐在仓库根目录运行：
+最终程序为 `desktop/app/bin/Release/net8.0-windows/publish/CodexNotif.exe`。Windows 必须使用与服务端完全相同的 `CODEXNOTIF_ACCESS_KEY`。普通用户可以直接配置：
+
+1. 从宝塔复制 `CODEXNOTIF_ACCESS_KEY` 的值；
+2. 打开 CodexNotif，在“服务器设置”的遮罩密钥框中粘贴；
+3. 点击“保存并测试”。
+
+密钥框永远不会回填真实值；留空表示保留现有密钥。新值只写入 Windows 当前用户环境变量并立即用于当前客户端，不会进入 `%LOCALAPPDATA%\CodexNotif\settings.json`、日志或界面明文。更换已有密钥后应重新打开 Codex，避免其子进程继续继承旧环境变量。
+
+无人值守或批量部署可以在仓库根目录运行：
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\Set-CodexNotifAccessKey.ps1
 ```
 
-脚本会生成密钥、设置当前用户环境变量并复制到剪贴板；把剪贴板内容粘贴到宝塔的同名环境变量。如果密钥先在服务器生成，则先复制服务器密钥，再运行：
+脚本会生成密钥、设置当前用户环境变量并复制到剪贴板；把剪贴板内容粘贴到宝塔的同名环境变量。如果密钥先在服务器生成，也可以复制服务器密钥后运行：
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\Set-CodexNotifAccessKey.ps1 -UseClipboard
 ```
 
-访问密钥不会写入 `%LOCALAPPDATA%\CodexNotif\settings.json`。修改环境变量后必须完全退出并重新打开 CodexNotif 和 Codex。
+通过脚本修改环境变量后必须完全退出并重新打开 CodexNotif 和 Codex。
 
 打开程序后，在“服务器设置”中填写完整的 HTTPS 服务地址并点击“保存并测试”；只有 `localhost`、`127.0.0.1`、`::1` 等本机回环地址允许使用 HTTP。地址会保存到当前用户的 `%LOCALAPPDATA%\CodexNotif\settings.json`，桌面界面和后台 Codex 完成通知共用该值。“保存并测试”会同时验证服务器访问密钥；已绑定设备还会验证 Device Token。客户端不会自动跟随服务器重定向，避免把访问密钥带到其他地址。
 
@@ -190,8 +198,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\Set-CodexNotifAccessKe
 
 打开 `CodexNotif.exe` 后：
 
-1. 确认界面显示访问密钥已从环境变量加载；
-2. 在“服务器设置”中填写服务地址，点击“保存并测试”，确认服务器验证通过；
+1. 如果界面显示访问密钥未配置，在遮罩密钥框粘贴宝塔中的同名密钥；已配置时留空即可；
+2. 在“服务器设置”中填写服务地址，点击“保存并测试”，确认服务器验证通过；密钥输入框随后会自动清空；
 3. 填写接收提醒的邮箱；
 4. 打开验证邮件中的链接；
 5. 回到桌面端等待绑定完成；

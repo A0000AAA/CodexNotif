@@ -149,6 +149,19 @@
                                      Margin="0,7,0,0"
                                      ToolTip="例如 https://notify.example.com"/>
 
+                            <TextBlock Margin="0,12,0,0"
+                                       Text="服务器访问密钥"/>
+
+                            <PasswordBox x:Name="AccessKeyPasswordBox"
+                                         Margin="0,7,0,0"
+                                         MaxLength="256"
+                                         ToolTip="留空表示继续使用当前环境变量中的密钥"/>
+
+                            <TextBlock Margin="0,5,0,0"
+                                       Text="留空保留现有值；新值只写入 Windows 用户环境变量，不会保存到应用配置。"
+                                       TextWrapping="Wrap"
+                                       Foreground="{StaticResource TextSecondaryBrush}"/>
+
                             <WrapPanel Margin="0,12,0,0">
                                 <Button x:Name="SaveServerButton"
                                         Content="保存并测试"
