@@ -29,6 +29,13 @@ class AccessKeyValidatorTest {
     }
 
     @Test
+    void embeddedWhitespaceFailsClosed() {
+        assertThrows(IllegalStateException.class,
+                () -> new AccessKeyValidator(propertiesWith(
+                        "x".repeat(16) + " " + "x".repeat(16))));
+    }
+
+    @Test
     void exactKeyIsAcceptedAndDifferentKeyIsRejected() {
         String expected = "x".repeat(32);
         AccessKeyValidator validator = new AccessKeyValidator(

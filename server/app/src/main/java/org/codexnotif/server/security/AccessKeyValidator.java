@@ -15,9 +15,9 @@ public final class AccessKeyValidator {
         String key = properties.getAccessKey();
         if (key == null
                 || key.length() < MINIMUM_LENGTH
-                || !key.equals(key.trim())) {
+                || containsUnsafeCharacter(key)) {
             throw new IllegalStateException(
-                    "CODEXNOTIF_ACCESS_KEY must contain at least 32 characters without surrounding whitespace.");
+                    "CODEXNOTIF_ACCESS_KEY must contain at least 32 characters without whitespace or control characters.");
         }
         expectedHash = TokenUtil.sha256(key);
     }
@@ -28,5 +28,11 @@ public final class AccessKeyValidator {
                 && TokenUtil.constantTimeEquals(
                         expectedHash,
                         TokenUtil.sha256(supplied));
+    }
+
+    private static boolean containsUnsafeCharacter(String value) {
+        return value.codePoints().anyMatch(character ->
+                Character.isWhitespace(character)
+                        || Character.isISOControl(character));
     }
 }
