@@ -1,0 +1,44 @@
+# Secrets and machine-local configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.pfx
+*.p12
+*.jks
+*.keystore
+*.cer
+*.crt
+**/local.properties
+**/*.csproj.user
+**/*.pubxml.user
+
+# IDE and operating-system files
+.idea/
+.vs/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+
+# Flutter / Dart / Gradle
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+build/
+**/.gradle/
+**/android/.gradle/
+**/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/flutter_export_environment.sh
+
+# .NET
+**/bin/
+**/obj/
+
+# Maven / runtime data
+**/target/
+*.mv.db
+*.trace.db
+*.log
+data/
