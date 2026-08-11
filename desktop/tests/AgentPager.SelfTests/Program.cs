@@ -20,28 +20,63 @@ if (args is ["--capture-arguments", var argumentsPath, .. var capturedArguments]
 
 var failures = new List<string>();
 
-Run("server URL defaults and normalizes", () =>
+Run("saved server URL wins and normalizes", () =>
 {
-    var original = Environment.GetEnvironmentVariable(
-        "CODEXNOTIF_SERVER_URL");
-    try
-    {
-        Environment.SetEnvironmentVariable("CODEXNOTIF_SERVER_URL", null);
-        Assert(
-            RelayApiClient.ServerBaseUrl == "http://localhost:27843",
-            "missing server URL must use the local default");
+    var resolved = ServerAddressResolver.Resolve(
+        " https://notify.example.com/base/ ",
+        "https://notify.example.com/environment");
 
-        Environment.SetEnvironmentVariable(
-            "CODEXNOTIF_SERVER_URL",
-            "https://notify.example.com/");
-        Assert(
-            RelayApiClient.ServerBaseUrl == "https://notify.example.com",
-            "configured server URL must drop trailing slashes");
-    }
-    finally
+    Assert(
+        resolved.BaseUrl == "https://notify.example.com/base",
+        "saved URL must win and normalize");
+    Assert(
+        resolved.Source == ServerAddressSource.ClientSettings,
+        "saved URL source must be reported");
+});
+
+Run("server URL falls back to environment then default", () =>
+{
+    var environment = ServerAddressResolver.Resolve(
+        null,
+        "https://notify.example.com/environment/");
+    var builtIn = ServerAddressResolver.Resolve("", "");
+
+    Assert(
+        environment == new ServerAddressResolution(
+            "https://notify.example.com/environment",
+            ServerAddressSource.EnvironmentVariable),
+        "empty saved URL must use the environment");
+    Assert(
+        builtIn == new ServerAddressResolution(
+            "http://localhost:27843",
+            ServerAddressSource.BuiltInDefault),
+        "empty saved and environment URLs must use the default");
+});
+
+Run("invalid server URLs are rejected", () =>
+{
+    foreach (var invalid in new[]
+             {
+                 "relative/path",
+                 "ftp://notify.example.com",
+                 "http://localhost@localhost",
+                 "https://notify.example.com?token=value",
+                 "https://notify.example.com/#fragment"
+             })
     {
-        Environment.SetEnvironmentVariable("CODEXNOTIF_SERVER_URL", original);
+        AssertThrows<ArgumentException>(() =>
+            ServerAddressResolver.Normalize(invalid));
     }
+});
+
+Run("relay client keeps the explicit normalized server URL", () =>
+{
+    using var relay = new RelayApiClient(
+        "https://notify.example.com/base/");
+
+    Assert(
+        relay.ServerBaseUrl == "https://notify.example.com/base",
+        "relay client must use its explicit normalized URL");
 });
 
 Run("installs once and preserves existing hooks", () =>

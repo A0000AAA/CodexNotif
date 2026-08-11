@@ -403,7 +403,7 @@ public partial class MainWindow : Window
 
             AddEvent(
                 ok ? "服务器在线" : "服务器异常",
-                RelayApiClient.ServerBaseUrl);
+                _relay.ServerBaseUrl);
         }
         catch (Exception ex)
         {

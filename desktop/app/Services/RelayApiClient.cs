@@ -8,17 +8,17 @@ namespace AgentPager.Services;
 
 public sealed class RelayApiClient : IDisposable
 {
-    public static string ServerBaseUrl
+    public RelayApiClient()
+        : this(ServerAddressResolver.Resolve(null).BaseUrl)
     {
-        get
-        {
-            var configured = Environment.GetEnvironmentVariable(
-                "CODEXNOTIF_SERVER_URL");
-            return string.IsNullOrWhiteSpace(configured)
-                ? "http://localhost:27843"
-                : configured.Trim().TrimEnd('/');
-        }
     }
+
+    public RelayApiClient(string serverBaseUrl)
+    {
+        ServerBaseUrl = ServerAddressResolver.Normalize(serverBaseUrl);
+    }
+
+    public string ServerBaseUrl { get; }
 
     private readonly HttpClient _httpClient = new()
     {
