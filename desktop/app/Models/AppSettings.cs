@@ -2,6 +2,8 @@ namespace AgentPager.Models;
 
 public sealed class AppSettings
 {
+    public string ServerBaseUrl { get; set; } = "";
+
     public string DeviceToken { get; set; } = "";
     public string BoundEmail { get; set; } = "";
 

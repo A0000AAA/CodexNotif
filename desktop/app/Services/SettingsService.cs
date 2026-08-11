@@ -13,8 +13,14 @@ public sealed class SettingsService
         WriteIndented = true
     };
 
-    public SettingsService()
+    public SettingsService(string? path = null)
     {
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            _path = Path.GetFullPath(path);
+            return;
+        }
+
         var dir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "CodexNotif");
@@ -45,6 +51,11 @@ public sealed class SettingsService
 
     public void Save(AppSettings settings)
     {
+        var directory = Path.GetDirectoryName(_path)
+                        ?? throw new InvalidOperationException(
+                            "无法确定设置文件目录。");
+        Directory.CreateDirectory(directory);
+
         var json = JsonSerializer.Serialize(
             settings,
             JsonOptions);

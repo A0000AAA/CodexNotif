@@ -10,7 +10,7 @@ public partial class MainWindow : Window
 {
     private readonly string _deviceId;
     private readonly SettingsService _settingsService = new();
-    private readonly RelayApiClient _relay = new();
+    private RelayApiClient _relay;
     private readonly CodexDetector _codexDetector;
     private readonly string _codexConfigPath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
@@ -31,6 +31,9 @@ public partial class MainWindow : Window
 
         _deviceId = new DeviceIdentityService().GetOrCreate();
         _settings = _settingsService.Load();
+        var server = ServerAddressResolver.Resolve(
+            _settings.ServerBaseUrl);
+        _relay = new RelayApiClient(server.BaseUrl);
 
         DeviceIdText.Text = _deviceId;
 

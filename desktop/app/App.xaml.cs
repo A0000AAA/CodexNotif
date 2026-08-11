@@ -119,14 +119,17 @@ public partial class App : Application
 
         try
         {
-            using var relay = new RelayApiClient();
+            var settings = new SettingsService().Load();
+            var server = ServerAddressResolver.Resolve(
+                settings.ServerBaseUrl);
+            using var relay = new RelayApiClient(server.BaseUrl);
             using var timeout = new CancellationTokenSource(
                 TimeSpan.FromSeconds(25));
 
             await CodexNotifyRunner.RunAsync(
                 payload,
                 new DeviceIdentityService().GetOrCreate(),
-                new SettingsService().Load(),
+                settings,
                 (agentEvent, token, cancellationToken) =>
                     relay.SendEventAsync(
                         agentEvent,
@@ -156,14 +159,17 @@ public partial class App : Application
 
         try
         {
-            using var relay = new RelayApiClient();
+            var settings = new SettingsService().Load();
+            var server = ServerAddressResolver.Resolve(
+                settings.ServerBaseUrl);
+            using var relay = new RelayApiClient(server.BaseUrl);
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(25));
 
             await CodexStopHookRunner.RunAsync(
                 Console.In,
                 Console.Out,
                 new DeviceIdentityService().GetOrCreate(),
-                new SettingsService().Load(),
+                settings,
                 (agentEvent, token, cancellationToken) =>
                     relay.SendEventAsync(agentEvent, token, cancellationToken),
                 message => HookLog.Write(logPath, message),

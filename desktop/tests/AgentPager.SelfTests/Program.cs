@@ -79,6 +79,54 @@ Run("relay client keeps the explicit normalized server URL", () =>
         "relay client must use its explicit normalized URL");
 });
 
+Run("server URL persists without changing binding data", () =>
+{
+    using var temp = new TempDirectory();
+    var service = new SettingsService(
+        Path.Combine(temp.Path, "settings.json"));
+    var settings = BoundSettings();
+    settings.PendingBindId = "B_TEST";
+    settings.PendingEmail = "pending@example.test";
+    settings.ServerBaseUrl = "https://notify.example.com";
+
+    service.Save(settings);
+    var loaded = service.Load();
+
+    Assert(
+        loaded.ServerBaseUrl == settings.ServerBaseUrl,
+        "server URL must persist");
+    Assert(
+        loaded.DeviceToken == settings.DeviceToken
+        && loaded.BoundEmail == settings.BoundEmail
+        && loaded.PendingBindId == settings.PendingBindId
+        && loaded.PendingEmail == settings.PendingEmail,
+        "binding data must remain intact");
+});
+
+Run("legacy settings without server URL still load", () =>
+{
+    using var temp = new TempDirectory();
+    var path = Path.Combine(temp.Path, "settings.json");
+    File.WriteAllText(
+        path,
+        """
+        {
+          "DeviceToken": "token",
+          "BoundEmail": "bound@example.test"
+        }
+        """);
+
+    var loaded = new SettingsService(path).Load();
+
+    Assert(
+        loaded.ServerBaseUrl == "",
+        "legacy settings must default to an empty saved server URL");
+    Assert(
+        loaded.DeviceToken == "token"
+        && loaded.BoundEmail == "bound@example.test",
+        "legacy binding data must remain readable");
+});
+
 Run("installs once and preserves existing hooks", () =>
 {
     using var temp = new TempDirectory();
