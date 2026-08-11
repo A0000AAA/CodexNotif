@@ -16,19 +16,30 @@ public static class CodexNotifyForwarder
             return;
         }
 
+        var safeCommand = CodexNotifyCommand.CreateSafeForwardCommand(command);
+
+        if (safeCommand.Length == 0)
+        {
+            TryLog(log, "已阻止原通知程序递归启动 CodexNotif。");
+            return;
+        }
+
+        if (safeCommand.Length < command.Count)
+            TryLog(log, "已移除原通知程序中的递归 CodexNotif 参数。");
+
         using var process = new Process
         {
             StartInfo = new ProcessStartInfo
             {
-                FileName = command[0],
+                FileName = safeCommand[0],
                 UseShellExecute = false,
                 CreateNoWindow = true,
                 WindowStyle = ProcessWindowStyle.Hidden
             }
         };
 
-        for (var index = 1; index < command.Count; index++)
-            process.StartInfo.ArgumentList.Add(command[index]);
+        for (var index = 1; index < safeCommand.Length; index++)
+            process.StartInfo.ArgumentList.Add(safeCommand[index]);
 
         process.StartInfo.ArgumentList.Add(payload);
 

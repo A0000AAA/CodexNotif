@@ -10,6 +10,14 @@ if (args is ["--capture-notify", var capturePath, var capturedPayload])
     return 0;
 }
 
+if (args is ["--capture-arguments", var argumentsPath, .. var capturedArguments])
+{
+    File.WriteAllText(
+        argumentsPath,
+        JsonSerializer.Serialize(capturedArguments));
+    return 0;
+}
+
 var failures = new List<string>();
 
 Run("server URL defaults and normalizes", () =>
@@ -141,6 +149,43 @@ Run("notify install preserves config and previous command", () =>
         CodexNotifyConfiguration.LoadPreviousCommand(state)
             .SequenceEqual(new[] { "old-notifier.exe", "turn-ended" }),
         "the full previous command must be preserved");
+});
+
+Run("wrapped CodexNotif command is already installed", () =>
+{
+    using var temp = new TempDirectory();
+    var config = Path.Combine(temp.Path, "config.toml");
+    var state = Path.Combine(temp.Path, "codex-notify-state.json");
+    const string executable = @"C:\Apps\CodexNotif.exe";
+    var nestedNotify = JsonSerializer.Serialize(new[]
+    {
+        executable,
+        CodexNotifyConfiguration.NotifyArgument
+    });
+    var wrapper = new[]
+    {
+        "codex-computer-use.exe",
+        "turn-ended",
+        "--previous-notify",
+        nestedNotify
+    };
+    var original = "notify = " + JsonSerializer.Serialize(wrapper) + "\n";
+    File.WriteAllText(config, original);
+
+    Assert(
+        CodexNotifyConfiguration.GetStatus(config, executable)
+            == CodexNotifyConfigurationStatus.Installed,
+        "a wrapper targeting this CodexNotif executable must be Installed");
+    Assert(
+        CodexNotifyConfiguration.Install(config, executable, state)
+            == CodexNotifyInstallResult.AlreadyInstalled,
+        "install must not replace a wrapper that already targets CodexNotif");
+    Assert(
+        File.ReadAllText(config) == original,
+        "already-installed wrapper config must remain unchanged");
+    Assert(
+        !File.Exists(state),
+        "already-installed wrapper must not create forwarding state");
 });
 
 Run("notify install is idempotent and restore is surgical", () =>
@@ -538,6 +583,102 @@ await RunAsync("previous notifier receives exact payload through process argumen
     Assert(
         File.ReadAllText(capturePath) == payload,
         "payload must cross the process boundary unchanged");
+});
+
+await RunAsync("recursive previous-notify is removed before forwarding", async () =>
+{
+    using var temp = new TempDirectory();
+    var capturePath = Path.Combine(temp.Path, "arguments.json");
+    var executable = Environment.ProcessPath
+                     ?? throw new Exception("self-test executable path is missing");
+    var nestedNotify = JsonSerializer.Serialize(new[]
+    {
+        executable,
+        CodexNotifyConfiguration.NotifyArgument
+    });
+    const string payload = "{\"type\":\"agent-turn-complete\"}";
+
+    await CodexNotifyForwarder.RunAsync(
+        new[]
+        {
+            executable,
+            "--capture-arguments",
+            capturePath,
+            "--previous-notify",
+            nestedNotify
+        },
+        payload,
+        _ => { },
+        CancellationToken.None);
+
+    var captured = JsonSerializer.Deserialize<string[]>(
+                       File.ReadAllText(capturePath))
+                   ?? throw new Exception("captured arguments are invalid");
+    Assert(
+        captured.SequenceEqual(new[] { payload }),
+        "recursive previous-notify pair must be removed before forwarding");
+});
+
+await RunAsync("non-Codex previous-notify is preserved", async () =>
+{
+    using var temp = new TempDirectory();
+    var capturePath = Path.Combine(temp.Path, "arguments.json");
+    var executable = Environment.ProcessPath
+                     ?? throw new Exception("self-test executable path is missing");
+    var nestedNotifier = JsonSerializer.Serialize(new[]
+    {
+        "other-notifier.exe",
+        "turn-ended"
+    });
+    const string payload = "{\"type\":\"agent-turn-complete\"}";
+
+    await CodexNotifyForwarder.RunAsync(
+        new[]
+        {
+            executable,
+            "--capture-arguments",
+            capturePath,
+            "--previous-notify",
+            nestedNotifier
+        },
+        payload,
+        _ => { },
+        CancellationToken.None);
+
+    var captured = JsonSerializer.Deserialize<string[]>(
+                       File.ReadAllText(capturePath))
+                   ?? throw new Exception("captured arguments are invalid");
+    Assert(
+        captured.SequenceEqual(new[]
+        {
+            "--previous-notify",
+            nestedNotifier,
+            payload
+        }),
+        "non-Codex previous-notify pair must remain unchanged");
+});
+
+await RunAsync("direct CodexNotif forwarding command is blocked", async () =>
+{
+    var logs = new List<string>();
+    var executable = Environment.ProcessPath
+                     ?? throw new Exception("self-test executable path is missing");
+
+    await CodexNotifyForwarder.RunAsync(
+        new[]
+        {
+            executable,
+            CodexNotifyConfiguration.NotifyArgument
+        },
+        "{\"type\":\"agent-turn-complete\"}",
+        logs.Add,
+        CancellationToken.None);
+
+    Assert(
+        logs.Any(message => message.Contains(
+            "阻止",
+            StringComparison.Ordinal)),
+        "direct CodexNotif recursion must be blocked and logged");
 });
 
 await RunAsync("failed previous notifier is never logged as successful", async () =>

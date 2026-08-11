@@ -55,7 +55,9 @@ public static class CodexNotifyConfiguration
             if (notify is null)
                 return CodexNotifyConfigurationStatus.Missing;
 
-            return IsAgentPagerCommand(notify.Command, executablePath)
+            return CodexNotifyCommand.TargetsExecutable(
+                    notify.Command,
+                    executablePath)
                 ? CodexNotifyConfigurationStatus.Installed
                 : CodexNotifyConfigurationStatus.Missing;
         }
@@ -79,7 +81,9 @@ public static class CodexNotifyConfiguration
         var notify = FindTopLevelNotify(originalText);
 
         if (notify is not null
-            && IsAgentPagerCommand(notify.Command, fullExecutablePath))
+            && CodexNotifyCommand.TargetsExecutable(
+                notify.Command,
+                fullExecutablePath))
         {
             return CodexNotifyInstallResult.AlreadyInstalled;
         }
@@ -390,31 +394,6 @@ public static class CodexNotifyConfiguration
             Path.GetFullPath(executablePath),
             NotifyArgument
         });
-    }
-
-    private static bool IsAgentPagerCommand(
-        string[] command,
-        string executablePath)
-    {
-        if (command.Length < 2
-            || !command.Skip(1).Contains(
-                NotifyArgument,
-                StringComparer.Ordinal))
-        {
-            return false;
-        }
-
-        try
-        {
-            return string.Equals(
-                Path.GetFullPath(command[0]),
-                Path.GetFullPath(executablePath),
-                StringComparison.OrdinalIgnoreCase);
-        }
-        catch
-        {
-            return false;
-        }
     }
 
     private static bool IsAnyAgentPagerCommand(string[]? command)
