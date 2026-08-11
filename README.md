@@ -170,7 +170,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\Set-CodexNotifAccessKe
 
 访问密钥不会写入 `%LOCALAPPDATA%\CodexNotif\settings.json`。修改环境变量后必须完全退出并重新打开 CodexNotif 和 Codex。
 
-打开程序后，在“服务器设置”中填写完整的 HTTP(S) 服务地址并点击“保存并测试”。地址会保存到当前用户的 `%LOCALAPPDATA%\CodexNotif\settings.json`，桌面界面和后台 Codex 完成通知共用该值。“保存并测试”会同时验证服务器访问密钥；已绑定设备还会验证 Device Token。
+打开程序后，在“服务器设置”中填写完整的 HTTPS 服务地址并点击“保存并测试”；只有 `localhost`、`127.0.0.1`、`::1` 等本机回环地址允许使用 HTTP。地址会保存到当前用户的 `%LOCALAPPDATA%\CodexNotif\settings.json`，桌面界面和后台 Codex 完成通知共用该值。“保存并测试”会同时验证服务器访问密钥；已绑定设备还会验证 Device Token。客户端不会自动跟随服务器重定向，避免把访问密钥带到其他地址。
 
 服务器地址按以下优先级解析：
 

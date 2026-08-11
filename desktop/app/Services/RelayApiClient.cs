@@ -23,7 +23,10 @@ public sealed class RelayApiClient : IDisposable
         ServerBaseUrl = ServerAddressResolver.Normalize(serverBaseUrl);
         _accessKey = accessKey;
         _httpClient = handler is null
-            ? new HttpClient()
+            ? new HttpClient(new HttpClientHandler
+            {
+                AllowAutoRedirect = false
+            })
             : new HttpClient(handler, disposeHandler: true);
         _httpClient.Timeout = TimeSpan.FromSeconds(20);
     }

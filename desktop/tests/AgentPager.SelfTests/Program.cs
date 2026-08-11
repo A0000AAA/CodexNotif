@@ -60,6 +60,7 @@ Run("invalid server URLs are rejected", () =>
              {
                  "relative/path",
                  "ftp://notify.example.com",
+                 "http://notify.example.com",
                  "http://localhost@localhost",
                  "https://notify.example.com?token=value",
                  "https://notify.example.com/#fragment"

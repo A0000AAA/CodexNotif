@@ -56,13 +56,14 @@ public static class ServerAddressResolver
                 out var uri)
             || (uri.Scheme != Uri.UriSchemeHttp
                 && uri.Scheme != Uri.UriSchemeHttps)
+            || (uri.Scheme == Uri.UriSchemeHttp && !uri.IsLoopback)
             || string.IsNullOrWhiteSpace(uri.Host)
             || !string.IsNullOrEmpty(uri.UserInfo)
             || !string.IsNullOrEmpty(uri.Query)
             || !string.IsNullOrEmpty(uri.Fragment))
         {
             throw new ArgumentException(
-                "请输入不含账号、查询参数和片段的完整 HTTP(S) 服务器地址。",
+                "请输入完整的 HTTPS 服务器地址；只有本机回环地址可使用 HTTP，且地址不能包含账号、查询参数或片段。",
                 nameof(value));
         }
 
