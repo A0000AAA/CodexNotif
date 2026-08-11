@@ -11,7 +11,7 @@ public sealed class DeviceIdentityService
     {
         var dir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "AgentPager");
+            "CodexNotif");
 
         Directory.CreateDirectory(dir);
         _path = Path.Combine(dir, "device.id");

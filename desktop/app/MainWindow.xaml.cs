@@ -19,7 +19,7 @@ public partial class MainWindow : Window
     private readonly string _codexNotifyStatePath = Path.Combine(
         Environment.GetFolderPath(
             Environment.SpecialFolder.LocalApplicationData),
-        "AgentPager",
+        "CodexNotif",
         "codex-notify-state.json");
 
     private AppSettings _settings;
@@ -324,7 +324,7 @@ public partial class MainWindow : Window
         var choice = MessageBox.Show(
             this,
             "是否启用 Codex 主任务完成邮件？\n\n"
-            + "AgentPager 将先备份 Codex 配置，再安装原生完成通知。"
+            + "CodexNotif 将先备份 Codex 配置，再安装原生完成通知。"
             + "现有 Computer Use 或其他通知程序会继续运行。\n\n"
             + "不读取或上传 Prompt、源代码和对话正文。",
             "启用 Codex 完成通知",
@@ -348,7 +348,7 @@ public partial class MainWindow : Window
         if (string.IsNullOrWhiteSpace(executablePath))
         {
             DetectorStatusText.Text = "配置失败";
-            DetectorDetailText.Text = "无法确定 AgentPager.exe 路径。";
+            DetectorDetailText.Text = "无法确定 CodexNotif.exe 路径。";
             return;
         }
 
@@ -369,7 +369,7 @@ public partial class MainWindow : Window
                     this,
                     "Codex 完成通知已启用。无需进入 /hooks。\n\n"
                     + "请重新打开 Codex；下次主任务停止等待时将自动发送邮件。",
-                    "Agent Pager",
+                    "CodexNotif",
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);
             }
@@ -471,7 +471,7 @@ public partial class MainWindow : Window
             MessageBox.Show(
                 this,
                 "请先完成邮箱绑定。",
-                "Agent Pager",
+                "CodexNotif",
                 MessageBoxButton.OK,
                 MessageBoxImage.Information);
         }
@@ -487,7 +487,7 @@ public partial class MainWindow : Window
                 _settings.BoundEmail;
 
             BindingSummaryText.Text =
-                "已绑定，可接收 Agent Pager 通知";
+                "已绑定，可接收 CodexNotif 通知";
 
             BindingStatusText.Text =
                 $"当前绑定邮箱：{_settings.BoundEmail}";
@@ -521,7 +521,7 @@ public partial class MainWindow : Window
         if (string.IsNullOrWhiteSpace(executablePath))
         {
             DetectorStatusText.Text = "配置异常";
-            DetectorDetailText.Text = "无法确定 AgentPager.exe 路径。";
+            DetectorDetailText.Text = "无法确定 CodexNotif.exe 路径。";
             EnableCodexNotifyButton.IsEnabled = false;
             return;
         }
@@ -541,7 +541,7 @@ public partial class MainWindow : Window
 
             case CodexNotifyConfigurationStatus.Invalid:
                 DetectorStatusText.Text = "Codex 配置需要检查";
-                DetectorDetailText.Text = "AgentPager 未覆盖无法安全解析的 notify 配置。";
+                DetectorDetailText.Text = "CodexNotif 未覆盖无法安全解析的 notify 配置。";
                 EnableCodexNotifyButton.Content = "配置不可自动修改";
                 EnableCodexNotifyButton.IsEnabled = false;
                 break;

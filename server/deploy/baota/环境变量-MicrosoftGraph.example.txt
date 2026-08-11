@@ -14,4 +14,4 @@ MICROSOFT_ENABLED=true
 MICROSOFT_TENANT=common
 MICROSOFT_CLIENT_ID=<GENERATED_SECRET>
 MICROSOFT_CLIENT_SECRET=<GENERATED_SECRET>
-MICROSOFT_REDIRECT_URI=https://notify.example.com/api/v1/admin/microsoft/callback
+MICROSOFT_REDIRECT_URI=https://notify.example.com/admin/microsoft/callback

@@ -45,7 +45,7 @@ public class NotificationService {
 
         String title = "agent.completed".equals(event.event())
                 ? "Codex 任务已完成"
-                : "Agent Pager 通知";
+                : "CodexNotif 通知";
 
         String subject =
                 properties.getEmail().getSubjectPrefix()
@@ -58,7 +58,7 @@ public class NotificationService {
                 + "\n事件：" + event.event()
                 + "\n时间：" + TIME_FORMAT.format(event.timestamp().toInstant())
                 + "\n\n请回到电脑查看结果。"
-                + "\n\nAgent Pager";
+                + "\n\nCodexNotif";
 
         email.send(new EmailMessage(
                 device.getEmail(),

@@ -17,7 +17,7 @@ public sealed class SettingsService
     {
         var dir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "AgentPager");
+            "CodexNotif");
 
         Directory.CreateDirectory(dir);
         _path = Path.Combine(dir, "settings.json");

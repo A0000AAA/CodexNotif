@@ -69,7 +69,7 @@ public partial class App : Application
         {
             var executablePath = Environment.ProcessPath
                                  ?? throw new InvalidOperationException(
-                                     "无法确定 AgentPager.exe 路径。");
+                                     "无法确定 CodexNotif.exe 路径。");
 
             if (install)
             {
@@ -172,7 +172,7 @@ public partial class App : Application
         catch (Exception ex)
         {
             await Console.Error.WriteLineAsync(
-                $"AgentPager Stop Hook startup error: {ex.GetType().Name}");
+                $"CodexNotif Stop Hook startup error: {ex.GetType().Name}");
 
             try
             {
@@ -218,7 +218,7 @@ public partial class App : Application
         var directory = Path.Combine(
             Environment.GetFolderPath(
                 Environment.SpecialFolder.LocalApplicationData),
-            "AgentPager");
+            "CodexNotif");
         Directory.CreateDirectory(directory);
         return directory;
     }

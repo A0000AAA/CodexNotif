@@ -69,7 +69,7 @@ app:
       tenant: ${MICROSOFT_TENANT:common}
       client-id: ${MICROSOFT_CLIENT_ID:}
       client-secret: ${MICROSOFT_CLIENT_SECRET:}
-      redirect-uri: ${MICROSOFT_REDIRECT_URI:http://localhost:27843/api/v1/admin/microsoft/callback}
+      redirect-uri: ${MICROSOFT_REDIRECT_URI:http://localhost:27843/admin/microsoft/callback}
 
 logging:
   level:

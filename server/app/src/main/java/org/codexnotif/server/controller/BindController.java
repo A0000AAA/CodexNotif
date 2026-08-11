@@ -116,13 +116,13 @@ public class BindController {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(page(
                             "验证失败",
-                            "链接无效或已过期，请回到 Agent Pager 重新绑定。"));
+                            "链接无效或已过期，请回到 CodexNotif 重新绑定。"));
         }
 
         return ResponseEntity.ok(
                 page(
                         "邮箱绑定成功",
-                        "可以关闭本页面并返回 Agent Pager。"));
+                        "可以关闭本页面并返回 CodexNotif。"));
     }
 
     private static String realIp(
@@ -148,7 +148,7 @@ public class BindController {
                 <head>
                   <meta charset="utf-8">
                   <meta name="viewport" content="width=device-width,initial-scale=1">
-                  <title>Agent Pager</title>
+                  <title>CodexNotif</title>
                   <style>
                     body{font-family:system-ui,sans-serif;background:#f5f7fa;margin:0;padding:40px}
                     main{max-width:560px;margin:10vh auto;background:#fff;border:1px solid #e5e7eb;

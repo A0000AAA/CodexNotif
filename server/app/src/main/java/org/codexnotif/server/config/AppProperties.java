@@ -34,8 +34,8 @@ public class AppProperties {
 
     public static class Email {
         private String provider = "microsoft";
-        private String fromName = "Agent Pager";
-        private String subjectPrefix = "[Agent Pager]";
+        private String fromName = "CodexNotif";
+        private String subjectPrefix = "[CodexNotif]";
         private final Smtp smtp = new Smtp();
         private final Microsoft microsoft = new Microsoft();
 

@@ -95,8 +95,12 @@ function Test-EmailAllowed {
         [string]$Path
     )
 
-    if ($Path.Replace('\', '/').StartsWith(
+    $normalizedPath = $Path.Replace('\', '/')
+    if ($normalizedPath.StartsWith(
             'mobile/third_party/',
+            [StringComparison]::OrdinalIgnoreCase) -or
+        $normalizedPath.StartsWith(
+            'third_party/licenses/',
             [StringComparison]::OrdinalIgnoreCase)) {
         return $true
     }
@@ -120,7 +124,9 @@ function Test-Text {
     )
 
     $normalized = $Path.Replace('\', '/')
-    $skipEntropy = $normalized -match '(?i)(^|/)(LICENSE|pubspec\.lock|gradle-wrapper\.properties)$'
+    $isDependencyReport = $normalized -match '(?i)^docs/(flutter|server)-dependency-licenses\.md$'
+    $skipEntropy = $isDependencyReport -or
+        $normalized -match '(?i)(^|/)(LICENSE|pubspec\.lock|gradle-wrapper\.properties)$'
     $containsRuleDefinitions = $normalized -eq 'tools/audit_public_repo.ps1'
     $lines = $Text -split "`r?`n"
 
@@ -147,14 +153,19 @@ function Test-Text {
             }
         }
 
-        foreach ($match in [regex]::Matches($line, $ipv4Pattern)) {
-            if ($match.Value -notin @('127.0.0.1', '0.0.0.0', '192.0.2.1')) {
-                Add-Finding -Rule 'non_example_ipv4' -Path $normalized -Line $lineNumber
+        if (-not $isDependencyReport) {
+            foreach ($match in [regex]::Matches($line, $ipv4Pattern)) {
+                if ($match.Value -notin @('127.0.0.1', '0.0.0.0', '192.0.2.1')) {
+                    Add-Finding -Rule 'non_example_ipv4' -Path $normalized -Line $lineNumber
+                }
             }
         }
 
         if (-not $normalized.StartsWith(
                 'mobile/third_party/',
+                [StringComparison]::OrdinalIgnoreCase) -and
+            -not $normalized.StartsWith(
+                'third_party/licenses/',
                 [StringComparison]::OrdinalIgnoreCase)) {
             foreach ($match in [regex]::Matches($line, $urlPattern)) {
                 if (-not (Test-UrlAllowed -Url $match.Value)) {

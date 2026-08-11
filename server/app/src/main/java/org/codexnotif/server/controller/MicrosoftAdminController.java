@@ -52,7 +52,7 @@ public class MicrosoftAdminController {
         return ResponseEntity.ok("""
                 <!doctype html>
                 <meta charset="utf-8">
-                <title>Agent Pager</title>
+                <title>CodexNotif</title>
                 <h2>Microsoft 邮箱连接成功</h2>
                 <p>Refresh Token 已加密保存到本地 H2 数据库，可以关闭本页面。</p>
                 """);
@@ -69,7 +69,7 @@ public class MicrosoftAdminController {
                 to,
                 properties.getEmail().getSubjectPrefix()
                         + " 测试邮件",
-                "Agent Pager 邮件通道测试成功。"));
+                "CodexNotif 邮件通道测试成功。"));
 
         return ResponseEntity.ok(
                 java.util.Map.of(

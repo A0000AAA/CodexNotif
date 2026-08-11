@@ -1,7 +1,7 @@
 <Window x:Class="AgentPager.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Agent Pager"
+        Title="CodexNotif"
         Width="900"
         Height="700"
         MinWidth="820"
@@ -26,7 +26,7 @@
                 </Grid.ColumnDefinitions>
 
                 <StackPanel>
-                    <TextBlock Text="Agent Pager"
+                    <TextBlock Text="CodexNotif"
                                FontSize="30"
                                FontWeight="Bold"/>
 

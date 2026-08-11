@@ -786,11 +786,11 @@ if (args is ["--check-scripts", var repositoryPath, var scriptExecutablePath])
         var installScript = Path.Combine(
             repositoryPath,
             "scripts",
-            "Install-AgentPagerCodexNotify.ps1");
+            "Install-CodexNotifNotify.ps1");
         var restoreScript = Path.Combine(
             repositoryPath,
             "scripts",
-            "Restore-AgentPagerCodexNotify.ps1");
+            "Restore-CodexNotifNotify.ps1");
         const string original =
             "model = \"gpt-5\"\r\n"
             + "notify = [\"old.exe\", \"arg with spaces\"]\r\n";

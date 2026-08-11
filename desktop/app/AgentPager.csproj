@@ -5,7 +5,7 @@
     <UseWPF>true</UseWPF>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <AssemblyName>AgentPager</AssemblyName>
+    <AssemblyName>CodexNotif</AssemblyName>
     <RootNamespace>AgentPager</RootNamespace>
     <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
   </PropertyGroup>

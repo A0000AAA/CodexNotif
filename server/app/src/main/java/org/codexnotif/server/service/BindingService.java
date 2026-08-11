@@ -75,7 +75,7 @@ public class BindingService {
                 Math.max(1, properties.getBindTtlSeconds() / 60);
 
         String text =
-                "你正在绑定 Agent Pager。"
+                "你正在绑定 CodexNotif。"
                         + "\n\n请在 "
                         + minutes
                         + " 分钟内打开下面的链接完成验证："

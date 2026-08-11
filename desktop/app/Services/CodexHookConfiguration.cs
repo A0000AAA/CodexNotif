@@ -64,7 +64,7 @@ public static class CodexHookConfiguration
         handler["type"] = "command";
         handler["command"] = BuildCommand(executablePath);
         handler["timeout"] = 30;
-        handler["statusMessage"] = "AgentPager 正在发送完成通知";
+        handler["statusMessage"] = "CodexNotif 正在发送完成通知";
 
         WriteAtomically(hooksPath, root.ToJsonString(new JsonSerializerOptions
         {

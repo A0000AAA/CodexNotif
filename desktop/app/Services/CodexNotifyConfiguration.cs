@@ -120,7 +120,7 @@ public static class CodexNotifyConfiguration
                                   "无法确定 Codex 配置目录。");
         var stateDirectory = Path.GetDirectoryName(fullStatePath)
                              ?? throw new InvalidOperationException(
-                                 "无法确定 AgentPager 状态目录。");
+                                 "无法确定 CodexNotif 状态目录。");
         Directory.CreateDirectory(configDirectory);
         Directory.CreateDirectory(stateDirectory);
 
@@ -464,12 +464,12 @@ public static class CodexNotifyConfiguration
             return state is { Version: 1 }
                 ? state
                 : throw new InvalidDataException(
-                    "AgentPager Codex notify 状态版本无效。");
+                    "CodexNotif Codex notify 状态版本无效。");
         }
         catch (JsonException ex)
         {
             throw new InvalidDataException(
-                "AgentPager Codex notify 状态文件无效。",
+                "CodexNotif Codex notify 状态文件无效。",
                 ex);
         }
     }
@@ -477,7 +477,7 @@ public static class CodexNotifyConfiguration
     private static string BuildBackupPath(string configPath)
     {
         return configPath
-               + ".agentpager."
+               + ".codexnotif."
                + DateTime.Now.ToString("yyyyMMddHHmmssfff")
                + ".bak";
     }
