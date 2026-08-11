@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Diagnostics;
 using System.Net;
+using System.Security;
 using System.Text;
 using AgentPager.Models;
 using AgentPager.Services;
@@ -87,37 +88,93 @@ Run("access key resolver rejects missing and unsafe values", () =>
     }
 });
 
-Run("access key resolver prefers current process value", () =>
+Run("access key persistence uses process before user without protected value", () =>
 {
-    var previous = Environment.GetEnvironmentVariable(
-        ServerAccessKeyResolver.EnvironmentVariableName,
-        EnvironmentVariableTarget.Process);
+    using var temp = new TempDirectory();
+    var expected = new string('p', 32);
+    var persistence = new ServerAccessKeyPersistence(
+        new ProtectedAccessKeyStore(
+            Path.Combine(temp.Path, "access-key.dat")),
+        target => target == EnvironmentVariableTarget.Process
+            ? expected
+            : new string('u', 32),
+        (_, _) => { });
 
-    try
-    {
-        var expected = new string('p', 32);
-        Environment.SetEnvironmentVariable(
-            ServerAccessKeyResolver.EnvironmentVariableName,
-            expected,
-            EnvironmentVariableTarget.Process);
+    Assert(
+        persistence.ReadOptional() == expected,
+        "process access key must win when protected storage is empty");
+});
 
-        Assert(
-            ServerAccessKeyResolver.ReadOptional() == expected,
-            "process access key must win");
-    }
-    finally
-    {
-        Environment.SetEnvironmentVariable(
-            ServerAccessKeyResolver.EnvironmentVariableName,
-            previous,
-            EnvironmentVariableTarget.Process);
-    }
+Run("protected access key wins over inherited environment values", () =>
+{
+    using var temp = new TempDirectory();
+    var store = new ProtectedAccessKeyStore(
+        Path.Combine(temp.Path, "access-key.dat"));
+    var expected = new string('d', 32);
+    store.Save(expected);
+    var persistence = new ServerAccessKeyPersistence(
+        store,
+        _ => new string('e', 32),
+        (_, _) => { });
+
+    Assert(
+        persistence.ReadOptional() == expected,
+        "protected access key must override inherited environment values");
 });
 
 Run("access key save rejects invalid values before persistence", () =>
 {
     AssertThrows<InvalidOperationException>(() =>
         ServerAccessKeyResolver.SaveForCurrentUser("short"));
+});
+
+Run("protected access key store encrypts and restores the value", () =>
+{
+    using var temp = new TempDirectory();
+    var path = Path.Combine(temp.Path, "access-key.dat");
+    var store = new ProtectedAccessKeyStore(path);
+    var key = new string('s', 32);
+
+    store.Save(key);
+
+    Assert(store.Load() == key, "DPAPI store must restore the key");
+    Assert(
+        File.ReadAllBytes(path).AsSpan().IndexOf(
+            Encoding.UTF8.GetBytes(key)) < 0,
+        "DPAPI file must not contain plaintext key bytes");
+});
+
+Run("access key persistence falls back when user environment is denied", () =>
+{
+    using var temp = new TempDirectory();
+    var store = new ProtectedAccessKeyStore(
+        Path.Combine(temp.Path, "access-key.dat"));
+    string? processValue = null;
+    var persistence = new ServerAccessKeyPersistence(
+        store,
+        target => target == EnvironmentVariableTarget.Process
+            ? processValue
+            : null,
+        (target, value) =>
+        {
+            if (target == EnvironmentVariableTarget.User)
+                throw new SecurityException("simulated policy denial");
+
+            processValue = value;
+        });
+    var key = new string('f', 32);
+
+    var location = persistence.Save(key);
+
+    Assert(
+        location == AccessKeySaveLocation.ProtectedLocalStorage,
+        "denied user environment must use protected local storage");
+    Assert(
+        persistence.ReadOptional() == key,
+        "protected fallback must be readable by later client paths");
+    Assert(
+        processValue == key,
+        "current process must use the newly saved key immediately");
 });
 
 await RunAsync("relay rejects a missing access key before network access", async () =>
