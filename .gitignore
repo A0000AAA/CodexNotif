@@ -18,6 +18,7 @@
 .idea/
 .vs/
 .vscode/
+.worktrees/
 *.iml
 .DS_Store
 Thumbs.db
