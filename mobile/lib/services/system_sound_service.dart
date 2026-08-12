@@ -13,8 +13,6 @@ class PickedSystemSound {
 class SystemSoundService {
   static const _channel =
       MethodChannel('org.codexnotif.mobile/system_sound');
-  static const _backgroundAudioChannel =
-      MethodChannel('org.codexnotif.mobile/background_audio');
 
   static Future<PickedSystemSound?> pick({
     String? existingUri,
@@ -55,7 +53,7 @@ class SystemSoundService {
       _channel.invokeMethod<void>('previewSound', {'uri': uri});
 
   static Future<void> startAlert(String uri) =>
-      _backgroundAudioChannel.invokeMethod<void>(
+      _channel.invokeMethod<void>(
         'startAlertSound',
         {'uri': uri},
       );
@@ -64,7 +62,7 @@ class SystemSoundService {
       _channel.invokeMethod<void>('stopPreviewSound');
 
   static Future<void> stopAlert() =>
-      _backgroundAudioChannel.invokeMethod<void>('stopAlertSound');
+      _channel.invokeMethod<void>('stopAlertSound');
 
   static String _cleanTitle(String? value) {
     final title = value?.trim() ?? '';

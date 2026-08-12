@@ -6,14 +6,10 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   const channel = MethodChannel('org.codexnotif.mobile/system_sound');
-  const backgroundAudioChannel =
-      MethodChannel('org.codexnotif.mobile/background_audio');
 
   tearDown(() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, null);
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(backgroundAudioChannel, null);
   });
 
   test('pick sends existing URI and maps native result', () async {
@@ -63,18 +59,12 @@ void main() {
     expect(uri, 'content://media/external/audio/media/42');
   });
 
-  test('preview uses activity channel and alerts use background channel',
+  test('preview and alerts use the Android-registered system sound channel',
       () async {
     final activityMethods = <String>[];
-    final backgroundMethods = <String>[];
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (call) async {
       activityMethods.add(call.method);
-      return null;
-    });
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(backgroundAudioChannel, (call) async {
-      backgroundMethods.add(call.method);
       return null;
     });
 
@@ -85,10 +75,8 @@ void main() {
 
     expect(activityMethods, [
       'previewSound',
-      'stopPreviewSound',
-    ]);
-    expect(backgroundMethods, [
       'startAlertSound',
+      'stopPreviewSound',
       'stopAlertSound',
     ]);
   });
