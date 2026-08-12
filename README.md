@@ -225,10 +225,16 @@ cd mobile
 flutter pub get
 flutter test
 flutter analyze
+$env:CODEXNOTIF_ANDROID_KEYSTORE='<PATH_OUTSIDE_REPOSITORY>\codexnotif-release.p12'
+$env:CODEXNOTIF_ANDROID_STORE_PASSWORD='<SECRET_FROM_PASSWORD_MANAGER>'
+$env:CODEXNOTIF_ANDROID_KEY_ALIAS='codexnotif'
+$env:CODEXNOTIF_ANDROID_KEY_PASSWORD='<SECRET_FROM_PASSWORD_MANAGER>'
 flutter build apk --release
 ```
 
-APK 位于 `mobile/build/app/outputs/flutter-apk/app-release.apk`，Android application ID 为 `org.codexnotif.mobile`。
+四项签名环境变量必须同时存在；缺少任意一项时 Release 构建会直接失败，不会回退到 Android Debug 证书。密钥文件必须放在仓库外并单独备份，密码只保存在密码管理器中。不要把真实路径或密码写入脚本、`key.properties`、README、日志或 Git。
+
+APK 位于 `mobile/build/app/outputs/flutter-apk/app-release.apk`，Android application ID 为 `org.codexnotif.mobile`。`v0.1.0-beta.2` 的 Android 可见版本名也是完整的 `v0.1.0-beta.2`，内部 `versionCode` 为 `2`。
 
 首次设置：
 
@@ -239,6 +245,10 @@ APK 位于 `mobile/build/app/outputs/flutter-apk/app-release.apk`，Android appl
 5. 在“通知方式”中选择普通通知或强提醒；
 6. 普通通知由系统通知渠道处理；强提醒会打开提醒界面并持续响铃，直到确认；
 7. 开启后台监听，并检查“IMAP 最近检查”是否持续更新。
+
+开启监听后，App 退到普通后台时会继续检查邮件；从最近任务划掉 App 后会主动停止监听，且不会开机自启、更新后自启或自动复活。需要继续监听时重新打开 App 并启用后台监听。
+
+历史测试包使用临时包名和 Android Debug 证书。正式包使用 `org.codexnotif.mobile` 和独立发布证书，两者可以短暂共存但配置不会自动迁移：先安装新版并重新填写 QQ 邮箱授权码和规则，确认正常后卸载旧测试包。
 
 内置铃声由 `tools/generate_tones.py` 生成。选择手机系统铃声时会进入系统铃声页面，选中后可试听；离开选择页或结束试听应立即停止播放。蓝牙路由由 Android、铃声音频用途及厂商策略共同决定，HyperOS 可能仍优先从手机扬声器播放闹钟音频，不能保证所有机型都走蓝牙。
 
@@ -336,15 +346,12 @@ Codex 只在主任务一轮完成时调用该命令；子 Agent 的内部结束�
 
 - 通知权限已允许；
 - 强提醒所需的全屏通知/在其他应用上显示权限已允许；
-- 自启动已允许；
-- 电池策略设为“无限制”；
-- 最近任务中锁定 App（不同系统版本入口不同）；
 - 前台服务常驻通知仍存在；
 - 通知栏里的“最近检查”时间持续变化，而不只是显示“监听正常”；
 - 系统勿扰、闹钟音量和所选铃声不是静音；
-- 清理后台后等待至少一个完整重连周期再判断。
+- 若希望继续监听，只把 App 退到后台，不要从最近任务划掉。
 
-Android/HyperOS 仍可能在用户“强行停止”、厂商深度清理或重启后阻止自动恢复。这属于系统策略边界，前台服务通知不能绕过强行停止。
+`v0.1.0-beta.2` 不申请忽略电池优化，也不申请开机自启动。用户划掉最近任务、强行停止、重启手机或厂商执行深度清理后，监听停止且不会自动恢复；这是降低侵入性和安全软件误报风险的预期行为。
 
 ## 常见问题
 
@@ -370,7 +377,7 @@ Android/HyperOS 仍可能在用户“强行停止”、厂商深度清理或重�
 
 ### 划掉 App 后 IMAP 最近检查不再更新
 
-确认前台服务通知是否还在、是否允许自启动和后台无限制。如果通知仍显示旧时间，说明只有通知残留或原生服务存活，Dart/IMAP 任务未正常恢复；重新打开 App 后查看状态和错误信息。
+这是 `v0.1.0-beta.2` 起的预期行为：普通后台继续监听，从最近任务划掉后停止且不自动恢复。重新打开 App 并启用后台监听即可继续；不要开启系统自启动或电池白名单来绕过这个边界。
 
 ### 改了端口后哪里还要同步
 

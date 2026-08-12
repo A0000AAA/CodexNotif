@@ -5,6 +5,26 @@ plugins {
     id "dev.flutter.flutter-gradle-plugin"
 }
 
+def releaseKeystorePath = System.getenv("CODEXNOTIF_ANDROID_KEYSTORE")
+def releaseStorePassword = System.getenv("CODEXNOTIF_ANDROID_STORE_PASSWORD")
+def releaseKeyAlias = System.getenv("CODEXNOTIF_ANDROID_KEY_ALIAS")
+def releaseKeyPassword = System.getenv("CODEXNOTIF_ANDROID_KEY_PASSWORD")
+def releaseSigningConfigured = [
+    releaseKeystorePath,
+    releaseStorePassword,
+    releaseKeyAlias,
+    releaseKeyPassword,
+].every { value -> value != null && !value.trim().isEmpty() }
+def releaseTaskRequested = gradle.startParameter.taskNames.any {
+    taskName -> taskName.toLowerCase().contains("release")
+}
+
+if (releaseTaskRequested && !releaseSigningConfigured) {
+    throw new GradleException(
+        "Release signing is not configured. Set all CODEXNOTIF_ANDROID_* signing environment variables."
+    )
+}
+
 android {
     namespace = "org.codexnotif.mobile"
     compileSdk = flutter.compileSdkVersion
@@ -19,22 +39,30 @@ android {
         jvmTarget = JavaVersion.VERSION_1_8
     }
 
+    signingConfigs {
+        release {
+            if (releaseSigningConfigured) {
+                storeFile = file(releaseKeystorePath)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
+        }
+    }
+
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "org.codexnotif.mobile"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
-        versionName = flutter.versionName
+        versionName = "v${flutter.versionName}"
     }
 
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.debug
+            signingConfig = signingConfigs.release
         }
     }
 }

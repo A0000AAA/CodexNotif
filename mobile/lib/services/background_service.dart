@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 
 import '../background/mail_monitor_task.dart';
@@ -52,17 +50,20 @@ class BackgroundService {
         showNotification: false,
         playSound: false,
       ),
-      foregroundTaskOptions: ForegroundTaskOptions(
-        eventAction: ForegroundTaskEventAction.repeat(30000),
-        autoRunOnBoot: true,
-        autoRunOnMyPackageReplaced: true,
-        allowWakeLock: true,
-        allowWifiLock: false,
-        allowAutoRestart: true,
-        stopWithTask: false,
-      ),
+      foregroundTaskOptions: createForegroundTaskOptions(),
     );
   }
+
+  static ForegroundTaskOptions createForegroundTaskOptions() =>
+      ForegroundTaskOptions(
+        eventAction: ForegroundTaskEventAction.repeat(30000),
+        autoRunOnBoot: false,
+        autoRunOnMyPackageReplaced: false,
+        allowWakeLock: true,
+        allowWifiLock: false,
+        allowAutoRestart: false,
+        stopWithTask: true,
+      );
 
   static Future<void> requestRuntimePermissions() async {
     final permission =
@@ -70,14 +71,6 @@ class BackgroundService {
 
     if (permission != NotificationPermission.granted) {
       await FlutterForegroundTask.requestNotificationPermission();
-    }
-  }
-
-  static Future<void> requestBatteryOptimizationExemption() async {
-    if (!Platform.isAndroid) return;
-
-    if (!await FlutterForegroundTask.isIgnoringBatteryOptimizations) {
-      await FlutterForegroundTask.requestIgnoreBatteryOptimization();
     }
   }
 

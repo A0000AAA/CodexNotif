@@ -321,10 +321,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Future<void> _requestBackgroundPermissions() async {
     await BackgroundService.requestRuntimePermissions();
     await NotificationService.instance.requestPermission();
-    await BackgroundService.requestBatteryOptimizationExemption();
     if (!mounted) return;
     setState(() {
-      _status = '权限设置已打开/完成。小米/HyperOS 还需允许自启动和后台无限制。';
+      _status = '通知权限已检查；应用退到后台时继续监听，从最近任务划掉后停止。';
     });
   }
 
