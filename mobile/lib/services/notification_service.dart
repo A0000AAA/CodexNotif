@@ -28,13 +28,14 @@ StrongAlert createStrongAlert({
   required String sender,
   required String subject,
   required String matchedRule,
-}) => StrongAlert(
-    notificationId: strongAlertNotificationId,
-    sender: sender,
-    subject: subject,
-    matchedRule: matchedRule,
-    soundUri: playbackUriForRule(rule),
-  );
+}) =>
+    StrongAlert(
+      notificationId: strongAlertNotificationId,
+      sender: sender,
+      subject: subject,
+      matchedRule: matchedRule,
+      soundUri: playbackUriForRule(rule),
+    );
 
 @pragma('vm:entry-point')
 void notificationTapBackground(NotificationResponse response) {
@@ -87,9 +88,8 @@ AndroidNotificationDetails buildAndroidNotificationDetails({
 }) {
   final strong = mode == AlertMode.strong;
   final useAlarmAudio = strong || forceAlarmAudio;
-  final aggregatedStrongAlert = strongAlert != null && strongAlert.count > 1
-      ? strongAlert
-      : null;
+  final aggregatedStrongAlert =
+      strongAlert != null && strongAlert.count > 1 ? strongAlert : null;
 
   return AndroidNotificationDetails(
     channelId,
@@ -113,7 +113,7 @@ AndroidNotificationDetails buildAndroidNotificationDetails({
             AndroidNotificationAction(
               'acknowledge',
               '我知道了',
-              cancelNotification: true,
+              cancelNotification: false,
               showsUserInterface: false,
             ),
           ]
@@ -190,9 +190,11 @@ class NotificationService {
 
   static void handleNotificationResponse(NotificationResponse response) {
     if (response.actionId != 'acknowledge') return;
+    final alert = StrongAlert.fromPayload(response.payload);
     unawaited(
       StrongAlertPlatformService.acknowledge(
         response.id ?? strongAlertNotificationId,
+        sessionToken: alert?.sessionToken ?? '',
       ),
     );
   }
@@ -300,12 +302,13 @@ class NotificationService {
     required String sender,
     required String subject,
     required String matchedRule,
-  }) => _showNormalMatchedMail(
-    rule: rule,
-    sender: sender,
-    subject: subject,
-    matchedRule: matchedRule,
-  );
+  }) =>
+      _showNormalMatchedMail(
+        rule: rule,
+        sender: sender,
+        subject: subject,
+        matchedRule: matchedRule,
+      );
 
   Future<void> _showNormalMatchedMail({
     required MailRule rule,

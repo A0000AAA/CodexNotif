@@ -6,6 +6,7 @@ void main() {
   test('later mail keeps first sound and increments one session', () {
     const first = StrongAlert(
       notificationId: 48202,
+      sessionToken: 'session-first',
       sender: 'first@example.test',
       subject: 'First',
       matchedRule: 'first rule',
@@ -13,6 +14,7 @@ void main() {
     );
     const latest = StrongAlert(
       notificationId: 48202,
+      sessionToken: 'session-latest',
       sender: 'latest@example.test',
       subject: 'Latest',
       matchedRule: 'latest rule',
@@ -25,5 +27,6 @@ void main() {
     expect(merged.subject, 'Latest');
     expect(merged.soundUri, 'content://sound/first');
     expect(merged.notificationId, 48202);
+    expect(merged.sessionToken, 'session-first');
   });
 }

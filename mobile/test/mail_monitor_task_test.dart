@@ -93,10 +93,13 @@ void main() {
   test('acknowledgement is handled and alerts are disposed before IMAP', () {
     final source =
         File('lib/background/mail_monitor_task.dart').readAsStringSync();
-    final onDestroy = source.substring(source.indexOf('Future<void> onDestroy'));
+    final onDestroy =
+        source.substring(source.indexOf('Future<void> onDestroy'));
 
     expect(source, contains("data['command'] == 'acknowledgeStrongAlert'"));
     expect(source, contains('_strongAlerts.acknowledge('));
+    expect(source, contains("sessionToken: data['sessionToken']?.toString()"));
+    expect(source, contains("'sessionToken': sessionToken"));
     expect(onDestroy.indexOf('await _strongAlerts.dispose()'), greaterThan(-1));
     expect(
       onDestroy.indexOf('await _strongAlerts.dispose()'),

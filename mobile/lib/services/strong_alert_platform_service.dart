@@ -18,16 +18,14 @@ class StrongAlertPlatformService {
       ) ??
       false;
 
-  static Future<void> acknowledge(int notificationId) async {
-    try {
-      await stopAudio();
-    } catch (_) {
-      // The task command remains the authoritative cleanup path.
-    } finally {
-      FlutterForegroundTask.sendDataToTask({
-        'command': 'acknowledgeStrongAlert',
-        'notificationId': notificationId,
-      });
-    }
+  static Future<void> acknowledge(
+    int notificationId, {
+    required String sessionToken,
+  }) async {
+    FlutterForegroundTask.sendDataToTask({
+      'command': 'acknowledgeStrongAlert',
+      'notificationId': notificationId,
+      'sessionToken': sessionToken,
+    });
   }
 }

@@ -3,6 +3,7 @@ import 'dart:convert';
 class StrongAlert {
   const StrongAlert({
     required this.notificationId,
+    this.sessionToken = '',
     required this.sender,
     required this.subject,
     required this.matchedRule,
@@ -11,6 +12,7 @@ class StrongAlert {
   });
 
   final int notificationId;
+  final String sessionToken;
   final String sender;
   final String subject;
   final String matchedRule;
@@ -19,23 +21,27 @@ class StrongAlert {
 
   StrongAlert copyWith({
     int? notificationId,
+    String? sessionToken,
     String? sender,
     String? subject,
     String? matchedRule,
     String? soundUri,
     int? count,
-  }) => StrongAlert(
-      notificationId: notificationId ?? this.notificationId,
-      sender: sender ?? this.sender,
-      subject: subject ?? this.subject,
-      matchedRule: matchedRule ?? this.matchedRule,
-      soundUri: soundUri ?? this.soundUri,
-      count: count ?? this.count,
-    );
+  }) =>
+      StrongAlert(
+        notificationId: notificationId ?? this.notificationId,
+        sessionToken: sessionToken ?? this.sessionToken,
+        sender: sender ?? this.sender,
+        subject: subject ?? this.subject,
+        matchedRule: matchedRule ?? this.matchedRule,
+        soundUri: soundUri ?? this.soundUri,
+        count: count ?? this.count,
+      );
 
   String toPayload() => jsonEncode({
         'type': 'strongAlert',
         'notificationId': notificationId,
+        'sessionToken': sessionToken,
         'sender': sender,
         'subject': subject,
         'matchedRule': matchedRule,
@@ -56,6 +62,7 @@ class StrongAlert {
 
       return StrongAlert(
         notificationId: value['notificationId'] as int,
+        sessionToken: value['sessionToken']?.toString() ?? '',
         sender: value['sender']?.toString() ?? '',
         subject: value['subject']?.toString() ?? '',
         matchedRule: value['matchedRule']?.toString() ?? '',
@@ -77,6 +84,7 @@ class StrongAlert {
       identical(this, other) ||
       other is StrongAlert &&
           notificationId == other.notificationId &&
+          sessionToken == other.sessionToken &&
           sender == other.sender &&
           subject == other.subject &&
           matchedRule == other.matchedRule &&
@@ -86,6 +94,7 @@ class StrongAlert {
   @override
   int get hashCode => Object.hash(
         notificationId,
+        sessionToken,
         sender,
         subject,
         matchedRule,

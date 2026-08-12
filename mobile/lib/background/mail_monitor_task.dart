@@ -32,18 +32,20 @@ class MailMonitorTaskHandler extends TaskHandler {
     stopAudio: StrongAlertPlatformService.stopAudio,
     showNotification: (alert, {required isUpdate}) =>
         NotificationService.instance.showStrongAlert(
-          alert,
-          isUpdate: isUpdate,
-        ),
+      alert,
+      isUpdate: isUpdate,
+    ),
     requestFullScreen: StrongAlertPlatformService.requestFullScreen,
     cancelNotification: NotificationService.instance.cancel,
     publish: (alert) => FlutterForegroundTask.sendDataToMain({
       'type': 'strongAlert',
       'payload': alert.toPayload(),
     }),
-    publishAcknowledged: (id) => FlutterForegroundTask.sendDataToMain({
+    publishAcknowledged: (id, sessionToken) =>
+        FlutterForegroundTask.sendDataToMain({
       'type': 'strongAlertAcknowledged',
       'notificationId': id,
+      'sessionToken': sessionToken,
     }),
   );
 
@@ -490,6 +492,7 @@ class MailMonitorTaskHandler extends TaskHandler {
       unawaited(
         _strongAlerts.acknowledge(
           notificationId: parseStoredUid(data['notificationId']),
+          sessionToken: data['sessionToken']?.toString(),
         ),
       );
     }

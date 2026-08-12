@@ -4,9 +4,20 @@ import 'package:codex_notif/models/mail_rule.dart';
 import 'package:codex_notif/models/strong_alert.dart';
 import 'package:codex_notif/services/notification_service.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  const foregroundTaskChannel =
+      MethodChannel('flutter_foreground_task/methods');
+
+  tearDown(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(foregroundTaskChannel, null);
+  });
+
   test('every bundled sound has a packaged Android raw resource', () {
     for (final sound in AlertSound.values) {
       final rawName = sound.rawName;
@@ -82,8 +93,42 @@ void main() {
     expect(details.additionalFlags, isNull);
     expect(details.actions, hasLength(1));
     expect(details.actions!.single.id, 'acknowledge');
-    expect(details.actions!.single.cancelNotification, isTrue);
+    expect(details.actions!.single.cancelNotification, isFalse);
     expect(details.actions!.single.showsUserInterface, isFalse);
+  });
+
+  test('notification acknowledgement forwards its payload session token',
+      () async {
+    final calls = <MethodCall>[];
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(foregroundTaskChannel, (call) async {
+      calls.add(call);
+      return null;
+    });
+    const alert = StrongAlert(
+      notificationId: 48202,
+      sessionToken: 'session-notification',
+      sender: 'sender@example.test',
+      subject: 'Completed',
+      matchedRule: 'subject',
+    );
+
+    NotificationService.handleNotificationResponse(
+      NotificationResponse(
+        id: alert.notificationId,
+        actionId: 'acknowledge',
+        payload: alert.toPayload(),
+        notificationResponseType:
+            NotificationResponseType.selectedNotificationAction,
+      ),
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    expect(calls.single.arguments, {
+      'command': 'acknowledgeStrongAlert',
+      'notificationId': 48202,
+      'sessionToken': 'session-notification',
+    });
   });
 
   test('strong aggregate expanded style preserves the aggregate copy', () {
