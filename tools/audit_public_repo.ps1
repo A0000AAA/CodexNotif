@@ -35,6 +35,7 @@ $allowedUrlHosts = @(
     'api.flutter.dev',
     'api.nuget.org',
     'dart.dev',
+    'datatracker.ietf.org',
     'developer.android.com',
     'developer.apple.com',
     'developers.openai.com',
@@ -62,6 +63,7 @@ $allowedUrlHosts = @(
     'spdx.org',
     'spring.io',
     'www.gnu.org',
+    'www.qqbizmail.com',
     'www.apple.com',
     'www.w3.org'
 )
