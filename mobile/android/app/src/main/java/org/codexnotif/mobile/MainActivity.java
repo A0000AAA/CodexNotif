@@ -39,23 +39,26 @@ public class MainActivity extends FlutterActivity {
     private MethodChannel.Result pendingRingtoneResult;
     private MethodChannel alertLaunchChannel;
     private String pendingStrongAlertPayload;
+    private boolean dartAlertLaunchReady;
     private MediaPlayer previewPlayer;
 
     @Override
     public void configureFlutterEngine(@NonNull FlutterEngine flutterEngine) {
         super.configureFlutterEngine(flutterEngine);
 
+        dartAlertLaunchReady = false;
         alertLaunchChannel = new MethodChannel(
                 flutterEngine.getDartExecutor().getBinaryMessenger(),
                 ALERT_LAUNCH_CHANNEL
         );
         alertLaunchChannel.setMethodCallHandler((call, result) -> {
-            if (!"takePendingStrongAlert".equals(call.method)) {
+            if (!"drainPendingStrongAlertAndMarkReady".equals(call.method)) {
                 result.notImplemented();
                 return;
             }
             final String payload = pendingStrongAlertPayload;
             pendingStrongAlertPayload = null;
+            dartAlertLaunchReady = true;
             result.success(payload);
         });
         captureStrongAlertPayload(getIntent(), false);
@@ -161,7 +164,7 @@ public class MainActivity extends FlutterActivity {
         final String payload = intent.getStringExtra(EXTRA_STRONG_ALERT_PAYLOAD);
         intent.removeExtra(EXTRA_STRONG_ALERT_PAYLOAD);
         if (payload == null || payload.isEmpty()) return;
-        if (pushNow && alertLaunchChannel != null) {
+        if (pushNow && dartAlertLaunchReady && alertLaunchChannel != null) {
             alertLaunchChannel.invokeMethod("showStrongAlert", payload);
         } else {
             pendingStrongAlertPayload = payload;

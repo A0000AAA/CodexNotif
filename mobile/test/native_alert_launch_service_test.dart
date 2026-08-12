@@ -26,7 +26,7 @@ void main() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(
       channel,
-      (call) async => call.method == 'takePendingStrongAlert'
+      (call) async => call.method == 'drainPendingStrongAlertAndMarkReady'
           ? firstAlert.toPayload()
           : null,
     );
@@ -55,6 +55,31 @@ void main() {
     );
 
     expect(await next, firstAlert);
+    expect(service.takePending(), isNull);
+  });
+
+  test('cold pending followed during drain retains only the latest payload',
+      () async {
+    const latestAlert = StrongAlert(
+      notificationId: 48202,
+      sessionToken: 'session-first',
+      sender: 'latest@example.test',
+      subject: 'Latest',
+      matchedRule: 'subject',
+      count: 2,
+    );
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+      if (call.method != 'drainPendingStrongAlertAndMarkReady') return null;
+      await _pushNative(latestAlert);
+      return firstAlert.toPayload();
+    });
+    final service = NativeAlertLaunchService();
+
+    await service.initialize();
+
+    expect(service.takePending(), latestAlert);
+    expect(service.takePending(), isNull);
   });
 
   test('MainActivity consumes the launch extra and has no alert player', () {
@@ -62,7 +87,9 @@ void main() {
       'android/app/src/main/java/org/codexnotif/mobile/MainActivity.java',
     ).readAsStringSync();
 
-    expect(source, contains('takePendingStrongAlert'));
+    expect(source, isNot(contains('"takePendingStrongAlert".equals')));
+    expect(source, contains('drainPendingStrongAlertAndMarkReady'));
+    expect(source, contains('dartAlertLaunchReady'));
     expect(source, contains('showStrongAlert'));
     expect(
       source,
@@ -72,4 +99,15 @@ void main() {
     expect(source, isNot(contains('"startAlertSound"')));
     expect(source, isNot(contains('"stopAlertSound"')));
   });
+}
+
+Future<void> _pushNative(StrongAlert alert) async {
+  await TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+      .handlePlatformMessage(
+    'org.codexnotif.mobile/alert_launch',
+    const StandardMethodCodec().encodeMethodCall(
+      MethodCall('showStrongAlert', alert.toPayload()),
+    ),
+    (_) {},
+  );
 }

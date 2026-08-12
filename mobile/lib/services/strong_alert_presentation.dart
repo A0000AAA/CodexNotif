@@ -12,6 +12,9 @@ class StrongAlertPresentationUpdate {
 class StrongAlertPresentation {
   final Map<String, ValueNotifier<StrongAlert>> _alerts = {};
 
+  ValueNotifier<StrongAlert>? find(String sessionToken) =>
+      _alerts[sessionToken];
+
   StrongAlertPresentationUpdate openOrUpdate(StrongAlert alert) {
     final existing = _alerts[alert.sessionToken];
     if (existing != null) {

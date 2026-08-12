@@ -37,9 +37,13 @@ class QqMailPagerApp extends StatefulWidget {
 }
 
 class _QqMailPagerAppState extends State<QqMailPagerApp> {
+  static const _acknowledgedTokenTtl = Duration(minutes: 10);
+  static const _maxAcknowledgedTokens = 128;
+
   final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
   final StrongAlertPresentation _presentation = StrongAlertPresentation();
   final Map<String, _OpenStrongAlertRoute> _openRoutes = {};
+  final Map<String, DateTime> _acknowledgedTokens = {};
   StreamSubscription<StrongAlert>? _strongAlertSubscription;
   StreamSubscription<StrongAlert>? _nativeAlertSubscription;
 
@@ -53,12 +57,10 @@ class _QqMailPagerAppState extends State<QqMailPagerApp> {
         NativeAlertLaunchService.instance.alerts.listen(_showStrongAlert);
     FlutterForegroundTask.addTaskDataCallback(_onTaskData);
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final pending = NotificationService.instance.takePendingStrongAlert();
-      if (pending != null) _showStrongAlert(pending);
-      final nativePending = NativeAlertLaunchService.instance.takePending();
-      if (nativePending != null) _showStrongAlert(nativePending);
-    });
+    final pending = NotificationService.instance.takePendingStrongAlert();
+    if (pending != null) _showStrongAlert(pending);
+    final nativePending = NativeAlertLaunchService.instance.takePending();
+    if (nativePending != null) _showStrongAlert(nativePending);
   }
 
   @override
@@ -89,10 +91,17 @@ class _QqMailPagerAppState extends State<QqMailPagerApp> {
   }
 
   void _showStrongAlert(StrongAlert alert) {
+    if (_isAcknowledged(alert.sessionToken)) return;
     final update = _presentation.openOrUpdate(alert);
     if (!update.created) return;
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (_isAcknowledged(alert.sessionToken)) {
+        _presentation
+            .remove(alert.sessionToken, expected: update.listenable)
+            ?.dispose();
+        return;
+      }
       final navigator = _navigatorKey.currentState;
       if (!mounted || navigator == null) {
         _presentation
@@ -121,15 +130,40 @@ class _QqMailPagerAppState extends State<QqMailPagerApp> {
 
   void _removeAcknowledgedRoute(int notificationId, String sessionToken) {
     final open = _openRoutes[sessionToken];
-    if (open == null ||
-        open.listenable.value.notificationId != notificationId ||
-        open.listenable.value.sessionToken != sessionToken) {
+    final listenable = open?.listenable ?? _presentation.find(sessionToken);
+    if (listenable == null ||
+        listenable.value.notificationId != notificationId ||
+        listenable.value.sessionToken != sessionToken) {
       return;
     }
+    _rememberAcknowledged(sessionToken);
+    if (open == null) return;
 
     _openRoutes.remove(sessionToken);
     _navigatorKey.currentState?.removeRoute(open.route);
     _presentation.remove(sessionToken, expected: open.listenable)?.dispose();
+  }
+
+  bool _isAcknowledged(String sessionToken) {
+    _pruneAcknowledgedTokens(DateTime.now().toUtc());
+    return _acknowledgedTokens.containsKey(sessionToken);
+  }
+
+  void _rememberAcknowledged(String sessionToken) {
+    final now = DateTime.now().toUtc();
+    _pruneAcknowledgedTokens(now);
+    _acknowledgedTokens.remove(sessionToken);
+    _acknowledgedTokens[sessionToken] = now;
+    while (_acknowledgedTokens.length > _maxAcknowledgedTokens) {
+      _acknowledgedTokens.remove(_acknowledgedTokens.keys.first);
+    }
+  }
+
+  void _pruneAcknowledgedTokens(DateTime now) {
+    _acknowledgedTokens.removeWhere(
+      (_, acknowledgedAt) =>
+          now.difference(acknowledgedAt) >= _acknowledgedTokenTtl,
+    );
   }
 
   @override

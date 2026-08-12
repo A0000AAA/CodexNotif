@@ -76,6 +76,54 @@ void main() {
     expect(find.text('updated@example.test'), findsOneWidget);
   });
 
+  testWidgets('acknowledgement before the first frame prevents route push',
+      (tester) async {
+    await tester.pumpWidget(
+      QqMailPagerApp(
+        notificationAlerts: notificationAlerts.stream,
+        home: const Scaffold(body: Text('home')),
+      ),
+    );
+
+    FlutterForegroundTask.dataCallbacks.single({
+      'type': 'strongAlert',
+      'payload': first.toPayload(),
+    });
+    FlutterForegroundTask.dataCallbacks.single({
+      'type': 'strongAlertAcknowledged',
+      'notificationId': first.notificationId,
+      'sessionToken': first.sessionToken,
+    });
+    await tester.pumpAndSettle();
+
+    expect(find.byType(FullScreenAlertPage), findsNothing);
+    expect(find.text('home'), findsOneWidget);
+  });
+
+  testWidgets('wrong notification id cannot tombstone a token before push',
+      (tester) async {
+    await tester.pumpWidget(
+      QqMailPagerApp(
+        notificationAlerts: notificationAlerts.stream,
+        home: const Scaffold(body: Text('home')),
+      ),
+    );
+
+    FlutterForegroundTask.dataCallbacks.single({
+      'type': 'strongAlert',
+      'payload': first.toPayload(),
+    });
+    FlutterForegroundTask.dataCallbacks.single({
+      'type': 'strongAlertAcknowledged',
+      'notificationId': 999,
+      'sessionToken': first.sessionToken,
+    });
+    await tester.pumpAndSettle();
+
+    expect(find.byType(FullScreenAlertPage), findsOneWidget);
+    expect(find.text('First'), findsOneWidget);
+  });
+
   testWidgets('old acknowledgement cannot close a newer token route',
       (tester) async {
     await tester.pumpWidget(
@@ -99,8 +147,13 @@ void main() {
       'sessionToken': first.sessionToken,
     });
     await tester.pumpAndSettle();
+    await _pushNative(first);
+    await tester.pumpAndSettle();
 
-    expect(find.byType(FullScreenAlertPage), findsOneWidget);
+    expect(
+      find.byType(FullScreenAlertPage, skipOffstage: false),
+      findsOneWidget,
+    );
     expect(find.text('Next session'), findsOneWidget);
   });
 }
