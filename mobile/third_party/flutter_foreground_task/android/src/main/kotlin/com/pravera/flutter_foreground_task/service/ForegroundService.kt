@@ -146,15 +146,6 @@ class ForegroundService : Service() {
         isTimeout = false
         loadDataFromPreferences()
 
-        val prefs = getSharedPreferences(PrefsKey.FOREGROUND_TASK_OPTIONS_PREFS, Context.MODE_PRIVATE)
-        if (prefs.contains(PrefsKey.STOP_WITH_TASK) && prefs.getBoolean(PrefsKey.STOP_WITH_TASK, false)) {
-            (application as? Application)?.let {
-                TrackVisibilityUtils.install(it) {
-                    stopForegroundService()
-                }
-            }
-        }
-
         var action = foregroundServiceStatus.action
         val isSetStopWithTaskFlag = ForegroundServiceUtils.isSetStopWithTaskFlag(this)
 

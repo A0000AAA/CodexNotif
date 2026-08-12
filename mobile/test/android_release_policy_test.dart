@@ -48,4 +48,25 @@ void main() {
     expect(manifest, contains('android:allowBackup="false"'));
     expect(homePage, isNot(contains('requestBatteryOptimizationExemption')));
   });
+
+  test('foreground service stops only when Android removes the task', () {
+    final foregroundService = File(
+      'third_party/flutter_foreground_task/android/src/main/kotlin/'
+      'com/pravera/flutter_foreground_task/service/ForegroundService.kt',
+    ).readAsStringSync();
+    final visibilityTracker = File(
+      'third_party/flutter_foreground_task/android/src/main/kotlin/'
+      'com/pravera/flutter_foreground_task/utils/TrackVisibilityUtils.kt',
+    );
+
+    expect(foregroundService, isNot(contains('TrackVisibilityUtils.install')));
+    expect(foregroundService, contains('override fun onTaskRemoved'));
+    expect(
+      RegExp(
+        r'override fun onTaskRemoved[\s\S]*?isSetStopWithTaskFlag[\s\S]*?stopSelf\(\)',
+      ).hasMatch(foregroundService),
+      isTrue,
+    );
+    expect(visibilityTracker.existsSync(), isFalse);
+  });
 }
