@@ -32,11 +32,11 @@ internal object AlertSoundPlayer {
                 val nextPlayer = createPlayer(appContext, candidate)
                 nextPlayer.start()
                 player = nextPlayer
-                Log.i(TAG, "Background alarm playback started; looping=true; uri=$candidate")
+                Log.i(TAG, "Background alarm playback started; looping=true")
                 return
             } catch (error: Exception) {
                 lastError = error
-                Log.w(TAG, "Alarm source could not be opened: $candidate", error)
+                Log.w(TAG, "Alarm source could not be opened: ${error.javaClass.simpleName}")
             }
         }
 

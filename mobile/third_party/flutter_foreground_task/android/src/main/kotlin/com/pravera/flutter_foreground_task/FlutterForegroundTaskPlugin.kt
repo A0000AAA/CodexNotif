@@ -6,6 +6,7 @@ import com.pravera.flutter_foreground_task.service.ForegroundServiceManager
 import com.pravera.flutter_foreground_task.service.NotificationPermissionManager
 import com.pravera.flutter_foreground_task.service.ServiceProvider
 import com.pravera.flutter_foreground_task.service.AlertSoundPlayer
+import com.pravera.flutter_foreground_task.service.XiaomiAlertActivityLauncher
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.embedding.engine.plugins.activity.ActivityAware
 import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
@@ -60,6 +61,13 @@ class FlutterForegroundTaskPlugin : FlutterPlugin, ActivityAware, ServiceProvide
                             AlertSoundPlayer.stop()
                             result.success(null)
                         }
+
+                        "showFullScreenAlert" -> result.success(
+                            XiaomiAlertActivityLauncher.launch(
+                                binding.applicationContext,
+                                call.argument<String>("payload"),
+                            ),
+                        )
 
                         else -> result.notImplemented()
                     }

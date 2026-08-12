@@ -211,6 +211,7 @@ class ForegroundService : Service() {
     }
 
     override fun onDestroy() {
+        AlertSoundPlayer.stop()
         super.onDestroy()
         stopMonitorWatchdog()
         val isTimeout = this.isTimeout
