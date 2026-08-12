@@ -44,8 +44,7 @@ void main() {
   test('top-level recursive LIST and LSUB folders merge by exact path', () {
     final inbox = mailbox('INBOX', [MailboxFlag.inbox]);
     final customFromList = mailbox('任务通知', [MailboxFlag.select]);
-    final customFromSubscription =
-        mailbox('任务通知', [MailboxFlag.subscribed]);
+    final customFromSubscription = mailbox('任务通知', [MailboxFlag.subscribed]);
     final subscriptionOnly = mailbox('自动提醒', [MailboxFlag.subscribed]);
 
     final merged = mergeMailboxLists(

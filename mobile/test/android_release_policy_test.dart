@@ -43,8 +43,10 @@ void main() {
       contains('android.permission.RECEIVE_BOOT_COMPLETED'),
     );
     expect(manifest, contains('tools:node="remove"'));
-    expect(manifest, contains('flutter_foreground_task.service.RebootReceiver'));
-    expect(manifest, contains('flutter_foreground_task.service.RestartReceiver'));
+    expect(
+        manifest, contains('flutter_foreground_task.service.RebootReceiver'));
+    expect(
+        manifest, contains('flutter_foreground_task.service.RestartReceiver'));
     expect(manifest, contains('android:allowBackup="false"'));
     expect(homePage, isNot(contains('requestBatteryOptimizationExemption')));
   });

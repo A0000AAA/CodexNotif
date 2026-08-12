@@ -11,8 +11,7 @@ class PickedSystemSound {
 }
 
 class SystemSoundService {
-  static const _channel =
-      MethodChannel('org.codexnotif.mobile/system_sound');
+  static const _channel = MethodChannel('org.codexnotif.mobile/system_sound');
 
   static Future<PickedSystemSound?> pick({
     String? existingUri,
@@ -52,8 +51,7 @@ class SystemSoundService {
   static Future<void> previewOnce(String uri) =>
       _channel.invokeMethod<void>('previewSound', {'uri': uri});
 
-  static Future<void> startAlert(String uri) =>
-      _channel.invokeMethod<void>(
+  static Future<void> startAlert(String uri) => _channel.invokeMethod<void>(
         'startAlertSound',
         {'uri': uri},
       );
