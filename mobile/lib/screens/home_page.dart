@@ -12,6 +12,8 @@ import '../services/qq_mail_service.dart';
 import '../services/secure_config_service.dart';
 import 'rule_editor_page.dart';
 
+const _manualMailboxChoice = '\u0000manual-mailbox';
+
 String monitorServiceStatus({
   required bool running,
   required MonitorHealth health,
@@ -57,6 +59,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   AppConfig _config = const AppConfig();
   bool _loading = true;
   bool _testing = false;
+  bool _choosingMailbox = false;
   bool _serviceRunning = false;
   int _selectedTab = 0;
   String _status = '正在加载…';
@@ -190,6 +193,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           lastScanText: text,
         );
         _status = '后台监听服务运行中';
+      } else if (type == 'mailboxFallback' && text != null) {
+        _config = _config.copyWith(imapMailboxPath: '');
+        _status = text;
       } else if (text != null && text.isNotEmpty) {
         _status = text;
       }
@@ -231,6 +237,169 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       );
     } finally {
       if (mounted) setState(() => _testing = false);
+    }
+  }
+
+  Future<void> _chooseMailbox() async {
+    await _saveCredentials();
+    if (!_config.hasCredentials) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('请先填写 QQ 邮箱和授权码')),
+      );
+      return;
+    }
+
+    setState(() {
+      _choosingMailbox = true;
+      _status = '正在读取 QQ IMAP 文件夹…';
+    });
+
+    try {
+      final options = await QqMailService.listSelectableMailboxes(_config);
+      if (!mounted) return;
+      final currentPath = _config.imapMailboxPath.trim();
+      final selectedPath = await showModalBottomSheet<String>(
+        context: context,
+        isScrollControlled: true,
+        showDragHandle: true,
+        builder: (sheetContext) => SafeArea(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 600),
+            child: ListView(
+              shrinkWrap: true,
+              children: [
+                const ListTile(
+                  title: Text(
+                    '选择监听文件夹',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  subtitle: Text('只监听一个文件夹；不选择时使用根收件箱'),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.edit_outlined),
+                  title: const Text('手动指定文件夹'),
+                  subtitle: const Text('QQ 未在列表显示自定义文件夹时使用'),
+                  onTap: () => Navigator.of(sheetContext).pop(
+                    _manualMailboxChoice,
+                  ),
+                ),
+                if (!hasQqCustomMailboxOption(options))
+                  const ListTile(
+                    leading: Icon(Icons.warning_amber_rounded),
+                    title: Text('QQ IMAP 未开放自定义文件夹'),
+                    subtitle: Text(
+                      '请先在 QQ 邮箱网页版的“收取选项”开启“收取我的文件夹”，保存后返回重试。',
+                    ),
+                  ),
+                const Divider(height: 1),
+                for (final option in options)
+                  ListTile(
+                    leading: Radio<String>(
+                      value: option.isInbox ? '' : option.path,
+                      groupValue: currentPath,
+                      onChanged: (value) =>
+                          Navigator.of(sheetContext).pop(value),
+                    ),
+                    title: Text(option.displayName),
+                    subtitle:
+                        !option.isInbox && option.displayName != option.path
+                            ? Text(option.path)
+                            : null,
+                    onTap: () => Navigator.of(sheetContext).pop(
+                      option.isInbox ? '' : option.path,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      );
+      if (selectedPath == null || !mounted) return;
+
+      var resolvedPath = selectedPath;
+      if (selectedPath == _manualMailboxChoice) {
+        final manualPath = await _askForMailboxPath(currentPath);
+        if (manualPath == null || !mounted) return;
+
+        setState(() => _status = '正在验证文件夹“$manualPath”…');
+        try {
+          await QqMailService.validateMailboxPath(_config, manualPath);
+        } catch (error) {
+          if (!mounted) return;
+          final message = '文件夹验证失败：$error';
+          setState(() => _status = message);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(message)),
+          );
+          return;
+        }
+        resolvedPath = manualPath;
+      }
+
+      _config = _config.copyWith(imapMailboxPath: resolvedPath);
+      await SecureConfigService.save(_config);
+      if (_serviceRunning) BackgroundService.reload();
+      if (!mounted) return;
+      setState(() {
+        _status = resolvedPath.isEmpty
+            ? '已改为监听根收件箱（INBOX）'
+            : '已改为监听文件夹：$resolvedPath';
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _status = '读取文件夹失败：$error');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('读取文件夹失败：$error')),
+      );
+    } finally {
+      if (mounted) setState(() => _choosingMailbox = false);
+    }
+  }
+
+  Future<String?> _askForMailboxPath(String currentPath) async {
+    final controller = TextEditingController(text: currentPath);
+    try {
+      return await showDialog<String>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('手动指定文件夹'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            decoration: const InputDecoration(
+              labelText: 'IMAP 文件夹名称',
+              hintText: '请与 QQ 邮箱中的名称完全一致',
+            ),
+            textInputAction: TextInputAction.done,
+            onSubmitted: (value) {
+              final path = value.trim();
+              if (path.isNotEmpty) Navigator.of(dialogContext).pop(path);
+            },
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final path = controller.text.trim();
+                if (path.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('文件夹名称不能为空')),
+                  );
+                  return;
+                }
+                Navigator.of(dialogContext).pop(path);
+              },
+              child: const Text('验证并使用'),
+            ),
+          ],
+        ),
+      );
+    } finally {
+      controller.dispose();
     }
   }
 
@@ -522,6 +691,22 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   helperText: '不是 QQ 登录密码',
                 ),
               ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.folder_outlined),
+              title: const Text('监听文件夹'),
+              subtitle: Text(
+                _config.imapMailboxPath.trim().isEmpty
+                    ? '根收件箱（INBOX）'
+                    : _config.imapMailboxPath,
+              ),
+              trailing: _choosingMailbox
+                  ? const SizedBox.square(
+                      dimension: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.chevron_right_rounded),
+              onTap: _choosingMailbox ? null : _chooseMailbox,
             ),
             ListTile(
               leading: const Icon(Icons.login_rounded),

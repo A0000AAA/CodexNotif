@@ -80,4 +80,39 @@ void main() {
     expect(find.textContaining('IMAP 检查已超过 90 秒'), findsOneWidget);
     expect(find.text('两分钟前 · 没有新邮件'), findsOneWidget);
   });
+
+  testWidgets('settings shows INBOX when no folder is configured',
+      (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: HomePage(
+          initialConfig: AppConfig(),
+          initialServiceRunning: false,
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('设置').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('监听文件夹'), findsOneWidget);
+    expect(find.text('根收件箱（INBOX）'), findsOneWidget);
+  });
+
+  testWidgets('settings shows the configured IMAP folder', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: HomePage(
+          initialConfig: AppConfig(imapMailboxPath: '任务通知'),
+          initialServiceRunning: false,
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('设置').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('监听文件夹'), findsOneWidget);
+    expect(find.text('任务通知'), findsOneWidget);
+  });
 }

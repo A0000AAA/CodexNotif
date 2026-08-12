@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:ui';
 
 import 'package:enough_mail/enough_mail.dart';
@@ -10,7 +11,6 @@ import '../models/monitor_health.dart';
 import '../services/notification_service.dart';
 import '../services/qq_mail_service.dart';
 import '../services/secure_config_service.dart';
-import '../services/system_sound_service.dart';
 import 'resilient_poll_loop.dart';
 
 @pragma('vm:entry-point')
@@ -23,6 +23,7 @@ void foregroundStartCallback() {
 
 class MailMonitorTaskHandler extends TaskHandler {
   MailClient? _client;
+  Mailbox? _selectedMailbox;
 
   ResilientPollLoop? _pollLoop;
 
@@ -32,6 +33,9 @@ class MailMonitorTaskHandler extends TaskHandler {
   bool _scanning = false;
   bool _destroyed = false;
   int _lastSeenUid = 0;
+  String? _cursorKey;
+  String _activeMailboxLabel = '根收件箱（INBOX）';
+  String? _mailboxFallbackNotice;
 
   @override
   Future<void> onStart(
@@ -46,23 +50,6 @@ class MailMonitorTaskHandler extends TaskHandler {
       'running': true,
       'text': 'Android 前台服务已运行，准备连接 QQ 邮箱',
     });
-
-    try {
-      final savedUid = await FlutterForegroundTask.getData(
-        key: 'last_seen_uid_service_fix',
-      );
-
-      if (savedUid is int) {
-        _lastSeenUid = savedUid;
-      } else if (savedUid is String) {
-        _lastSeenUid = int.tryParse(savedUid) ?? 0;
-      }
-    } catch (e) {
-      FlutterForegroundTask.sendDataToMain({
-        'type': 'status',
-        'text': '读取 UID 状态失败，但后台服务继续运行：$e',
-      });
-    }
 
     _pollLoop?.stop();
     _pollLoop = ResilientPollLoop(
@@ -142,31 +129,55 @@ class MailMonitorTaskHandler extends TaskHandler {
         timeout: const Duration(seconds: 15),
       );
 
-      final inbox = await client.selectInbox();
+      final mailboxes = await QqMailService.listAllMailboxes(client);
+      final configuredPath = _config.imapMailboxPath.trim();
+      _mailboxFallbackNotice = null;
 
-      if (_lastSeenUid == 0) {
-        _lastSeenUid = await _latestUid(client, inbox);
-        if (_lastSeenUid > 0) {
-          await FlutterForegroundTask.saveData(
-            key: 'last_seen_uid_service_fix',
-            value: _lastSeenUid,
-          );
-        }
+      try {
+        _selectedMailbox = await QqMailService.selectMailbox(
+          client,
+          mailboxes,
+          configuredPath,
+        );
+      } catch (error) {
+        final canFallback = shouldFallbackToInbox(
+          error: error,
+          isConnected: client.isConnected,
+          mailboxes: mailboxes,
+          configuredPath: configuredPath,
+        );
+        if (!canFallback) rethrow;
+
+        final oldPath = configuredPath;
+        _selectedMailbox = await QqMailService.selectMailbox(
+          client,
+          mailboxes,
+          '',
+        );
+        _config = _config.copyWith(imapMailboxPath: '');
+        await SecureConfigService.save(_config);
+        _mailboxFallbackNotice = '监听文件夹“$oldPath”不可用，已回退根收件箱';
       }
+
+      _activeMailboxLabel =
+          _selectedMailbox!.isInbox ? '根收件箱（INBOX）' : _selectedMailbox!.name;
+      await _activateMailboxCursor(client, _selectedMailbox!);
 
       // QQ IMAP IDLE is not reliable on every Android/HyperOS background
       // connection. Always perform an explicit UID scan as well, so missed
       // MailLoadEvents are recovered deterministically.
       await _scanSafely();
 
+      final fallbackNotice = _mailboxFallbackNotice;
       await FlutterForegroundTask.updateService(
         notificationTitle: 'QQ 邮箱提醒器正在监听',
-        notificationText: 'QQ IMAP 已连接；匹配规则的邮件才会响',
+        notificationText:
+            fallbackNotice ?? '正在监听 $_activeMailboxLabel；匹配规则的邮件才会响',
       );
 
       FlutterForegroundTask.sendDataToMain({
-        'type': 'status',
-        'text': '后台服务正常；QQ IMAP 已连接',
+        'type': fallbackNotice == null ? 'status' : 'mailboxFallback',
+        'text': fallbackNotice ?? '后台服务正常；正在监听 $_activeMailboxLabel',
       });
     } catch (e, stack) {
       // Do NOT throw. Keep the Android FGS alive and retry later.
@@ -188,16 +199,38 @@ class MailMonitorTaskHandler extends TaskHandler {
   }
 
   Future<int> _latestUid(MailClient client, Mailbox inbox) async {
-    final uidNext = inbox.uidNext;
-    if (uidNext != null && uidNext > 0) {
-      return uidNext - 1;
-    }
-
     final latest = await client.fetchMessages(
       count: 1,
       fetchPreference: FetchPreference.envelope,
     );
-    return latest.isEmpty ? 0 : latest.first.uid ?? 0;
+    if (latest.isNotEmpty && latest.first.uid != null) {
+      return latest.first.uid!;
+    }
+    final uidNext = inbox.uidNext;
+    return uidNext != null && uidNext > 0 ? uidNext - 1 : 0;
+  }
+
+  Future<void> _activateMailboxCursor(
+    MailClient client,
+    Mailbox mailbox,
+  ) async {
+    final key = mailboxCursorKey(
+      _config.email,
+      mailbox.path,
+      mailbox.uidValidity,
+    );
+    if (_cursorKey == key) return;
+
+    final stored = await FlutterForegroundTask.getData(key: key);
+    final savedUid = parseStoredUid(stored);
+    _cursorKey = key;
+    if (savedUid != null) {
+      _lastSeenUid = savedUid;
+      return;
+    }
+
+    _lastSeenUid = await _latestUid(client, mailbox);
+    await FlutterForegroundTask.saveData(key: key, value: _lastSeenUid);
   }
 
   Future<void> _scanSafely() async {
@@ -208,29 +241,51 @@ class MailMonitorTaskHandler extends TaskHandler {
 
     _scanning = true;
     try {
-      final inbox = await client.selectInbox();
-      final latestUid = await _latestUid(client, inbox);
+      final selected = _selectedMailbox;
+      if (selected == null) return;
+      final mailbox = await client.selectMailbox(selected);
+      _selectedMailbox = mailbox;
+      _activeMailboxLabel = mailbox.isInbox ? '根收件箱（INBOX）' : mailbox.name;
+      await _activateMailboxCursor(client, mailbox);
+      final advertisedLatestUid = await _latestUid(client, mailbox);
       final previousUid = _lastSeenUid;
 
-      if (latestUid <= previousUid) {
-        await _reportScan(0);
-        return;
-      }
-
       final fetched = await client.fetchMessageSequence(
-        MessageSequence.fromRange(
-          previousUid + 1,
-          latestUid,
-          isUidSequence: true,
-        ),
+        newUidFetchSequence(previousUid),
         fetchPreference: FetchPreference.envelope,
       );
       final messages = selectNewMessagesAfterUid(fetched, previousUid);
-
-      for (final message in messages) {
-        await _handleMessage(message);
+      var observedLatestUid = advertisedLatestUid;
+      for (final message in fetched) {
+        final uid = message.uid;
+        if (uid != null && uid > observedLatestUid) {
+          observedLatestUid = uid;
+        }
       }
-      await _reportScan(messages.length);
+      await processMessagesAndCommitUid(
+        messages: messages,
+        lastSeenUid: previousUid,
+        handleMessage: _handleMessage,
+        commitUid: (uid) async {
+          final cursorKey = _cursorKey;
+          if (cursorKey == null) {
+            throw StateError('IMAP UID 游标尚未初始化。');
+          }
+          await FlutterForegroundTask.saveData(
+            key: cursorKey,
+            value: uid,
+          );
+          _lastSeenUid = uid;
+        },
+      );
+      await _reportScan(
+        messages.length,
+        savedUid: _lastSeenUid,
+        serverLatestUid: observedLatestUid,
+        uidValidity: mailbox.uidValidity,
+        mailboxLabel: _activeMailboxLabel,
+        notice: _mailboxFallbackNotice,
+      );
     } catch (e) {
       FlutterForegroundTask.sendDataToMain({
         'type': 'error',
@@ -242,13 +297,25 @@ class MailMonitorTaskHandler extends TaskHandler {
     }
   }
 
-  Future<void> _reportScan(int newMessageCount) async {
+  Future<void> _reportScan(
+    int newMessageCount, {
+    required int savedUid,
+    required int serverLatestUid,
+    required int? uidValidity,
+    required String mailboxLabel,
+    String? notice,
+  }) async {
     final now = DateTime.now();
-    final time = [now.hour, now.minute, now.second]
-        .map((part) => part.toString().padLeft(2, '0'))
-        .join(':');
-    final text =
-        '$time · ${newMessageCount == 0 ? '没有新邮件' : '发现 $newMessageCount 封新邮件'}';
+    final time = formatScanTime(now);
+    final text = buildScanReportText(
+      now: now,
+      newMessageCount: newMessageCount,
+      savedUid: savedUid,
+      serverLatestUid: serverLatestUid,
+      uidValidity: uidValidity,
+      mailboxLabel: mailboxLabel,
+      notice: notice,
+    );
 
     try {
       await Future.wait([
@@ -275,7 +342,7 @@ class MailMonitorTaskHandler extends TaskHandler {
     try {
       await FlutterForegroundTask.updateService(
         notificationTitle: 'QQ 邮箱提醒器正在监听',
-        notificationText: '监听正常 · 最近检查 $time',
+        notificationText: notice ?? '监听 $mailboxLabel 正常 · 最近检查 $time',
       );
     } catch (e) {
       FlutterForegroundTask.sendDataToMain({
@@ -295,13 +362,6 @@ class MailMonitorTaskHandler extends TaskHandler {
 
     if (uid != null) {
       if (uid <= _lastSeenUid) return;
-
-      _lastSeenUid = uid;
-
-      await FlutterForegroundTask.saveData(
-        key: 'last_seen_uid_service_fix',
-        value: uid,
-      );
     }
 
     _config = await SecureConfigService.load();
@@ -345,10 +405,6 @@ class MailMonitorTaskHandler extends TaskHandler {
         matchedRule: '${matched.type.label}「${matched.pattern}」',
       );
       if (strongAlert != null) {
-        // The foreground-task FlutterEngine remains alive after the app UI is
-        // swiped away. Start the native looping player from this engine before
-        // asking the optional main UI isolate to show the full-screen page.
-        await SystemSoundService.startAlert(strongAlert.soundUri);
         FlutterForegroundTask.sendDataToMain({
           'type': 'strongAlert',
           'payload': strongAlert.toPayload(),
@@ -359,6 +415,7 @@ class MailMonitorTaskHandler extends TaskHandler {
         'type': 'error',
         'text': '邮件已匹配，但通知播放失败：$e',
       });
+      rethrow;
     }
   }
 
@@ -422,6 +479,9 @@ class MailMonitorTaskHandler extends TaskHandler {
   Future<void> _disconnectClient() async {
     final client = _client;
     _client = null;
+    _selectedMailbox = null;
+    _cursorKey = null;
+    _lastSeenUid = 0;
 
     if (client == null) return;
 
@@ -433,6 +493,92 @@ class MailMonitorTaskHandler extends TaskHandler {
   }
 }
 
+MessageSequence newUidFetchSequence(int lastSeenUid) =>
+    MessageSequence.fromRangeToLast(
+      lastSeenUid + 1,
+      isUidSequence: true,
+    );
+
+String formatScanTime(DateTime now) => [now.hour, now.minute, now.second]
+    .map((part) => part.toString().padLeft(2, '0'))
+    .join(':');
+
+String buildScanReportText({
+  required DateTime now,
+  required int newMessageCount,
+  required int savedUid,
+  required int serverLatestUid,
+  required int? uidValidity,
+  String mailboxLabel = '根收件箱（INBOX）',
+  String? notice,
+}) {
+  final result = newMessageCount == 0 ? '没有新邮件' : '发现 $newMessageCount 封新邮件';
+  final base =
+      '${formatScanTime(now)} · $result · $mailboxLabel · UID 已存 $savedUid / 服务器 $serverLatestUid · UIDVALIDITY ${uidValidity ?? '未知'}';
+  return notice == null ? base : '$base · $notice';
+}
+
+String mailboxCursorKey(
+  String email,
+  String mailboxPath,
+  int? uidValidity,
+) {
+  final account = email.trim().toLowerCase();
+  final rawPath = mailboxPath.trim();
+  final folder =
+      rawPath.isEmpty || rawPath.toUpperCase() == 'INBOX' ? 'INBOX' : rawPath;
+  final identity = '$account\n$folder\n${uidValidity ?? 0}';
+  return 'last_seen_uid_v2_${base64Url.encode(utf8.encode(identity))}';
+}
+
+int? parseStoredUid(Object? value) {
+  if (value is int) return value;
+  if (value is String) return int.tryParse(value);
+  return null;
+}
+
+Mailbox? findConfiguredMailbox(
+  Iterable<Mailbox> mailboxes,
+  String configuredPath,
+) {
+  for (final mailbox in mailboxes) {
+    if (mailbox.path == configuredPath &&
+        !mailbox.flags.contains(MailboxFlag.noSelect) &&
+        !mailbox.flags.contains(MailboxFlag.virtual)) {
+      return mailbox;
+    }
+  }
+  return null;
+}
+
+bool requiresDirectMailboxSelection(
+  Iterable<Mailbox> mailboxes,
+  String configuredPath,
+) {
+  final path = configuredPath.trim();
+  return path.isNotEmpty &&
+      path.toUpperCase() != 'INBOX' &&
+      findConfiguredMailbox(mailboxes, path) == null;
+}
+
+bool shouldFallbackToInbox({
+  required Object error,
+  required bool isConnected,
+  required Iterable<Mailbox> mailboxes,
+  required String configuredPath,
+}) {
+  if (!isConnected ||
+      !requiresDirectMailboxSelection(mailboxes, configuredPath)) {
+    return false;
+  }
+
+  final message = error.toString().toLowerCase();
+  return message.contains('folder not exist') ||
+      message.contains('unknown mailbox') ||
+      message.contains('[nonexistent]') ||
+      message.contains('mailbox does not exist');
+}
+
 List<MimeMessage> selectNewMessagesAfterUid(
   Iterable<MimeMessage> messages,
   int lastSeenUid,
@@ -442,4 +588,24 @@ List<MimeMessage> selectNewMessagesAfterUid(
       .toList();
   selected.sort((left, right) => left.uid!.compareTo(right.uid!));
   return selected;
+}
+
+Future<int> processMessagesAndCommitUid({
+  required Iterable<MimeMessage> messages,
+  required int lastSeenUid,
+  required Future<void> Function(MimeMessage message) handleMessage,
+  required Future<void> Function(int uid) commitUid,
+}) async {
+  var committedUid = lastSeenUid;
+
+  for (final message in messages) {
+    final uid = message.uid;
+    if (uid == null || uid <= committedUid) continue;
+
+    await handleMessage(message);
+    await commitUid(uid);
+    committedUid = uid;
+  }
+
+  return committedUid;
 }
