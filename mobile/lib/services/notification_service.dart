@@ -1,13 +1,46 @@
 import 'dart:async';
-import 'dart:typed_data';
+import 'dart:ui';
 
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import '../models/mail_rule.dart';
 import '../models/strong_alert.dart';
+import 'strong_alert_platform_service.dart';
 import 'system_sound_service.dart';
 
 const int strongAlertNotificationId = 48202;
+const String strongAlertChannelId = 'mail_strong_alert_silent_v2';
+
+String strongAlertTitle(StrongAlert alert) => alert.count > 1
+    ? '收到多封匹配邮件'
+    : (alert.subject.isEmpty ? '收到匹配邮件' : alert.subject);
+
+String strongAlertBody(StrongAlert alert) {
+  if (alert.count == 1) {
+    return alert.sender.isEmpty ? 'QQ 邮箱规则匹配' : alert.sender;
+  }
+  final latest = alert.subject.isEmpty ? '最新邮件无主题' : alert.subject;
+  return '共 ${alert.count} 封 · 最新：$latest';
+}
+
+StrongAlert createStrongAlert({
+  required MailRule rule,
+  required String sender,
+  required String subject,
+  required String matchedRule,
+}) => StrongAlert(
+    notificationId: strongAlertNotificationId,
+    sender: sender,
+    subject: subject,
+    matchedRule: matchedRule,
+    soundUri: playbackUriForRule(rule),
+  );
+
+@pragma('vm:entry-point')
+void notificationTapBackground(NotificationResponse response) {
+  DartPluginRegistrant.ensureInitialized();
+  NotificationService.handleNotificationResponse(response);
+}
 
 int notificationIdForAlert(
   AlertMode mode, {
@@ -49,6 +82,7 @@ AndroidNotificationDetails buildAndroidNotificationDetails({
   required String subject,
   required String matchedRule,
   bool forceAlarmAudio = false,
+  bool isStrongUpdate = false,
 }) {
   final strong = mode == AlertMode.strong;
   final useAlarmAudio = strong || forceAlarmAudio;
@@ -57,25 +91,26 @@ AndroidNotificationDetails buildAndroidNotificationDetails({
     channelId,
     channelName,
     channelDescription: '由 QQ 邮箱规则匹配触发',
-    importance: Importance.max,
+    importance: strong ? Importance.high : Importance.max,
     priority: Priority.high,
-    playSound: true,
-    sound: sound,
-    enableVibration: true,
+    playSound: !strong,
+    sound: strong ? null : sound,
+    onlyAlertOnce: strong,
+    enableVibration: strong ? !isStrongUpdate : true,
     autoCancel: !strong,
     ongoing: strong,
     category: strong
         ? AndroidNotificationCategory.alarm
         : AndroidNotificationCategory.message,
     fullScreenIntent: strong,
-    additionalFlags: strong ? Int32List.fromList(const [4]) : null,
+    additionalFlags: null,
     actions: strong
         ? const [
             AndroidNotificationAction(
               'acknowledge',
               '我知道了',
               cancelNotification: true,
-              showsUserInterface: true,
+              showsUserInterface: false,
             ),
           ]
         : null,
@@ -115,6 +150,7 @@ class NotificationService {
     await _plugin.initialize(
       init,
       onDidReceiveNotificationResponse: _handleNotificationResponse,
+      onDidReceiveBackgroundNotificationResponse: notificationTapBackground,
     );
 
     final launchDetails = await _plugin.getNotificationAppLaunchDetails();
@@ -133,16 +169,24 @@ class NotificationService {
     NotificationResponse response, {
     bool retainForStartup = false,
   }) {
-    if (response.actionId == 'acknowledge') {
-      unawaited(SystemSoundService.stopAlert());
-      return;
-    }
+    handleNotificationResponse(response);
+
+    if (response.actionId == 'acknowledge') return;
 
     final alert = StrongAlert.fromPayload(response.payload);
     if (alert == null) return;
 
     if (retainForStartup) _pendingStrongAlert = alert;
     _strongAlertController.add(alert);
+  }
+
+  static void handleNotificationResponse(NotificationResponse response) {
+    if (response.actionId != 'acknowledge') return;
+    unawaited(
+      StrongAlertPlatformService.acknowledge(
+        response.id ?? strongAlertNotificationId,
+      ),
+    );
   }
 
   StrongAlert? takePendingStrongAlert() {
@@ -180,22 +224,96 @@ class NotificationService {
     required String matchedRule,
     bool preview = false,
   }) async {
+    if (!preview && rule.alertMode == AlertMode.strong) {
+      final alert = createStrongAlert(
+        rule: rule,
+        sender: sender,
+        subject: subject,
+        matchedRule: matchedRule,
+      );
+      await showStrongAlert(alert, isUpdate: false);
+      return alert;
+    }
+
+    await _showNormalMatchedMail(
+      rule: rule,
+      sender: sender,
+      subject: subject,
+      matchedRule: matchedRule,
+      preview: preview,
+    );
+    return null;
+  }
+
+  Future<void> showStrongAlert(
+    StrongAlert alert, {
+    required bool isUpdate,
+  }) async {
     await initialize();
 
     final android = _plugin.resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin>();
+    await android?.createNotificationChannel(
+      const AndroidNotificationChannel(
+        strongAlertChannelId,
+        '强提醒（静默）',
+        description: '由 QQ 邮箱规则匹配触发',
+        importance: Importance.high,
+        playSound: false,
+        enableVibration: true,
+        showBadge: true,
+      ),
+    );
 
+    final details = NotificationDetails(
+      android: buildAndroidNotificationDetails(
+        mode: AlertMode.strong,
+        channelId: strongAlertChannelId,
+        channelName: '强提醒（静默）',
+        sound: const RawResourceAndroidNotificationSound('tone_phone'),
+        sender: alert.sender,
+        subject: alert.subject,
+        matchedRule: alert.matchedRule,
+        isStrongUpdate: isUpdate,
+      ),
+    );
+    await _plugin.show(
+      alert.notificationId,
+      strongAlertTitle(alert),
+      strongAlertBody(alert),
+      details,
+      payload: alert.toPayload(),
+    );
+  }
+
+  Future<void> showNormalMatchedMail({
+    required MailRule rule,
+    required String sender,
+    required String subject,
+    required String matchedRule,
+  }) => _showNormalMatchedMail(
+    rule: rule,
+    sender: sender,
+    subject: subject,
+    matchedRule: matchedRule,
+  );
+
+  Future<void> _showNormalMatchedMail({
+    required MailRule rule,
+    required String sender,
+    required String subject,
+    required String matchedRule,
+    bool preview = false,
+  }) async {
+    await initialize();
+
+    final android = _plugin.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
     final sound = notificationSoundForRule(rule);
-    final effectiveMode = preview ? AlertMode.normal : rule.alertMode;
     final channelId = _channelIdForRule(rule, preview: preview);
     final channelName = preview
         ? '试听 · ${_soundDisplayName(rule)}'
         : '${rule.alertMode.label} · ${_soundDisplayName(rule)}';
-    final strong = effectiveMode == AlertMode.strong;
-    final useAlarmAudio = strong || preview;
-
-    // Android 8+: channel owns the sound. A new sound selection gets a new
-    // deterministic channel ID so changing sound takes effect immediately.
     await android?.createNotificationChannel(
       AndroidNotificationChannel(
         channelId,
@@ -206,43 +324,29 @@ class NotificationService {
         sound: sound,
         enableVibration: true,
         showBadge: true,
-        audioAttributesUsage: useAlarmAudio
+        audioAttributesUsage: preview
             ? AudioAttributesUsage.alarm
             : AudioAttributesUsage.notification,
       ),
     );
 
-    final notificationId = notificationIdForAlert(effectiveMode);
-    final strongAlert = strong
-        ? StrongAlert(
-            notificationId: notificationId,
-            sender: sender,
-            subject: subject,
-            matchedRule: matchedRule,
-            soundUri: playbackUriForRule(rule),
-          )
-        : null;
-    final details = NotificationDetails(
-      android: buildAndroidNotificationDetails(
-        mode: effectiveMode,
-        channelId: channelId,
-        channelName: channelName,
-        sound: sound,
-        sender: sender,
-        subject: subject,
-        matchedRule: matchedRule,
-        forceAlarmAudio: preview,
-      ),
-    );
-
     await _plugin.show(
-      notificationId,
+      notificationIdForAlert(AlertMode.normal),
       subject.isEmpty ? '收到匹配邮件' : subject,
       sender.isEmpty ? 'QQ 邮箱规则匹配' : sender,
-      details,
-      payload: strongAlert?.toPayload(),
+      NotificationDetails(
+        android: buildAndroidNotificationDetails(
+          mode: AlertMode.normal,
+          channelId: channelId,
+          channelName: channelName,
+          sound: sound,
+          sender: sender,
+          subject: subject,
+          matchedRule: matchedRule,
+          forceAlarmAudio: preview,
+        ),
+      ),
     );
-    return strongAlert;
   }
 
   Future<void> testRuleSound(MailRule rule) async {

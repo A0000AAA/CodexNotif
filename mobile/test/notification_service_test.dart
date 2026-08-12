@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:codex_notif/models/mail_rule.dart';
+import 'package:codex_notif/models/strong_alert.dart';
 import 'package:codex_notif/services/notification_service.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -34,15 +35,30 @@ void main() {
     );
   });
 
-  test('strong details remain ongoing and insistent until acknowledgement', () {
+  test('aggregated title and body expose one combined reminder', () {
+    const alert = StrongAlert(
+      notificationId: 48202,
+      sender: 'latest@example.test',
+      subject: 'Latest task',
+      matchedRule: 'subject',
+      count: 3,
+    );
+
+    expect(strongAlertTitle(alert), '收到多封匹配邮件');
+    expect(strongAlertBody(alert), contains('共 3 封'));
+    expect(strongAlertBody(alert), contains('Latest task'));
+  });
+
+  test('strong notification delegates sound to native player', () {
     final details = buildAndroidNotificationDetails(
       mode: AlertMode.strong,
       channelId: 'strong',
       channelName: 'Strong',
       sound: const RawResourceAndroidNotificationSound('tone_phone'),
-      sender: 'bot@example.com',
-      subject: 'Done',
-      matchedRule: 'subject: Done',
+      sender: 'sender@example.test',
+      subject: 'Completed',
+      matchedRule: 'subject',
+      isStrongUpdate: true,
     );
 
     expect(details.ongoing, isTrue);
@@ -50,10 +66,14 @@ void main() {
     expect(details.fullScreenIntent, isTrue);
     expect(details.category, AndroidNotificationCategory.alarm);
     expect(details.audioAttributesUsage, AudioAttributesUsage.alarm);
-    expect(details.additionalFlags, contains(4));
+    expect(details.playSound, isFalse);
+    expect(details.onlyAlertOnce, isTrue);
+    expect(details.enableVibration, isFalse);
+    expect(details.additionalFlags, isNull);
     expect(details.actions, hasLength(1));
     expect(details.actions!.single.id, 'acknowledge');
     expect(details.actions!.single.cancelNotification, isTrue);
+    expect(details.actions!.single.showsUserInterface, isFalse);
   });
 
   test('normal details preserve one-shot message behavior', () {
