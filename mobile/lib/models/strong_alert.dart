@@ -7,6 +7,7 @@ class StrongAlert {
     required this.subject,
     required this.matchedRule,
     this.soundUri = 'android.resource://org.codexnotif.mobile/raw/tone_phone',
+    this.count = 1,
   });
 
   final int notificationId;
@@ -14,6 +15,23 @@ class StrongAlert {
   final String subject;
   final String matchedRule;
   final String soundUri;
+  final int count;
+
+  StrongAlert copyWith({
+    int? notificationId,
+    String? sender,
+    String? subject,
+    String? matchedRule,
+    String? soundUri,
+    int? count,
+  }) => StrongAlert(
+      notificationId: notificationId ?? this.notificationId,
+      sender: sender ?? this.sender,
+      subject: subject ?? this.subject,
+      matchedRule: matchedRule ?? this.matchedRule,
+      soundUri: soundUri ?? this.soundUri,
+      count: count ?? this.count,
+    );
 
   String toPayload() => jsonEncode({
         'type': 'strongAlert',
@@ -22,6 +40,7 @@ class StrongAlert {
         'subject': subject,
         'matchedRule': matchedRule,
         'soundUri': soundUri,
+        'count': count,
       });
 
   static StrongAlert? fromPayload(String? payload) {
@@ -43,6 +62,10 @@ class StrongAlert {
         soundUri: value['soundUri']?.toString().isNotEmpty == true
             ? value['soundUri'].toString()
             : 'android.resource://org.codexnotif.mobile/raw/tone_phone',
+        count: switch (value['count']) {
+          final int count when count > 0 => count,
+          _ => 1,
+        },
       );
     } on FormatException {
       return null;
@@ -57,7 +80,8 @@ class StrongAlert {
           sender == other.sender &&
           subject == other.subject &&
           matchedRule == other.matchedRule &&
-          soundUri == other.soundUri;
+          soundUri == other.soundUri &&
+          count == other.count;
 
   @override
   int get hashCode => Object.hash(
@@ -66,5 +90,6 @@ class StrongAlert {
         subject,
         matchedRule,
         soundUri,
+        count,
       );
 }

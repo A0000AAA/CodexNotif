@@ -14,6 +14,23 @@ void main() {
     expect(StrongAlert.fromPayload(alert.toPayload()), alert);
   });
 
+  test('count round trips and old payload defaults to one', () {
+    const alert = StrongAlert(
+      notificationId: 42,
+      sender: 'sender@example.test',
+      subject: 'Completed',
+      matchedRule: 'subject',
+      count: 3,
+    );
+    expect(StrongAlert.fromPayload(alert.toPayload()), alert);
+    expect(
+      StrongAlert.fromPayload(
+        '{"type":"strongAlert","notificationId":42}',
+      )?.count,
+      1,
+    );
+  });
+
   test('invalid strong alert payload is ignored', () {
     expect(StrongAlert.fromPayload(null), isNull);
     expect(StrongAlert.fromPayload('not json'), isNull);
