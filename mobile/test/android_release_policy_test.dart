@@ -7,7 +7,7 @@ void main() {
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final gradle = File('android/app/build.gradle').readAsStringSync();
 
-    expect(pubspec, contains('version: 0.1.0-beta.2+2'));
+    expect(pubspec, contains('version: 0.1.0-beta.3+3'));
     expect(gradle, contains('applicationId = "org.codexnotif.mobile"'));
     expect(
       gradle,
