@@ -83,9 +83,13 @@ AndroidNotificationDetails buildAndroidNotificationDetails({
   required String matchedRule,
   bool forceAlarmAudio = false,
   bool isStrongUpdate = false,
+  StrongAlert? strongAlert,
 }) {
   final strong = mode == AlertMode.strong;
   final useAlarmAudio = strong || forceAlarmAudio;
+  final aggregatedStrongAlert = strongAlert != null && strongAlert.count > 1
+      ? strongAlert
+      : null;
 
   return AndroidNotificationDetails(
     channelId,
@@ -102,7 +106,7 @@ AndroidNotificationDetails buildAndroidNotificationDetails({
     category: strong
         ? AndroidNotificationCategory.alarm
         : AndroidNotificationCategory.message,
-    fullScreenIntent: strong,
+    fullScreenIntent: strong && !isStrongUpdate,
     additionalFlags: null,
     actions: strong
         ? const [
@@ -118,9 +122,13 @@ AndroidNotificationDetails buildAndroidNotificationDetails({
         ? AudioAttributesUsage.alarm
         : AudioAttributesUsage.notification,
     styleInformation: BigTextStyleInformation(
-      '$sender\n$subject\n规则：$matchedRule',
-      contentTitle: subject.isEmpty ? '收到匹配邮件' : subject,
-      summaryText: sender,
+      aggregatedStrongAlert == null
+          ? '$sender\n$subject\n规则：$matchedRule'
+          : strongAlertBody(aggregatedStrongAlert),
+      contentTitle: aggregatedStrongAlert == null
+          ? (subject.isEmpty ? '收到匹配邮件' : subject)
+          : strongAlertTitle(aggregatedStrongAlert),
+      summaryText: aggregatedStrongAlert == null ? sender : null,
     ),
   );
 }
@@ -275,6 +283,7 @@ class NotificationService {
         subject: alert.subject,
         matchedRule: alert.matchedRule,
         isStrongUpdate: isUpdate,
+        strongAlert: alert,
       ),
     );
     await _plugin.show(

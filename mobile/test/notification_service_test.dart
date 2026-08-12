@@ -50,6 +50,15 @@ void main() {
   });
 
   test('strong notification delegates sound to native player', () {
+    final initialDetails = buildAndroidNotificationDetails(
+      mode: AlertMode.strong,
+      channelId: 'strong',
+      channelName: 'Strong',
+      sound: const RawResourceAndroidNotificationSound('tone_phone'),
+      sender: 'sender@example.test',
+      subject: 'Completed',
+      matchedRule: 'subject',
+    );
     final details = buildAndroidNotificationDetails(
       mode: AlertMode.strong,
       channelId: 'strong',
@@ -63,7 +72,8 @@ void main() {
 
     expect(details.ongoing, isTrue);
     expect(details.autoCancel, isFalse);
-    expect(details.fullScreenIntent, isTrue);
+    expect(initialDetails.fullScreenIntent, isTrue);
+    expect(details.fullScreenIntent, isFalse);
     expect(details.category, AndroidNotificationCategory.alarm);
     expect(details.audioAttributesUsage, AudioAttributesUsage.alarm);
     expect(details.playSound, isFalse);
@@ -74,6 +84,30 @@ void main() {
     expect(details.actions!.single.id, 'acknowledge');
     expect(details.actions!.single.cancelNotification, isTrue);
     expect(details.actions!.single.showsUserInterface, isFalse);
+  });
+
+  test('strong aggregate expanded style preserves the aggregate copy', () {
+    const alert = StrongAlert(
+      notificationId: 48202,
+      sender: 'latest@example.test',
+      subject: 'Latest task',
+      matchedRule: 'subject',
+      count: 3,
+    );
+    final details = buildAndroidNotificationDetails(
+      mode: AlertMode.strong,
+      channelId: 'strong',
+      channelName: 'Strong',
+      sound: const RawResourceAndroidNotificationSound('tone_phone'),
+      sender: alert.sender,
+      subject: alert.subject,
+      matchedRule: alert.matchedRule,
+      strongAlert: alert,
+    );
+    final style = details.styleInformation! as BigTextStyleInformation;
+
+    expect(style.contentTitle, '收到多封匹配邮件');
+    expect(style.bigText, contains('共 3 封'));
   });
 
   test('normal details preserve one-shot message behavior', () {
