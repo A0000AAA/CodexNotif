@@ -92,4 +92,21 @@ void main() {
     expect(details.fullScreenIntent, isFalse);
     expect(details.ongoing, isFalse);
   });
+
+  test('system-local sound always plays the URI selected by the user', () {
+    const selectedUri = 'content://media/external/audio/media/1234';
+    const rule = MailRule(
+      id: 'local-hajimi',
+      type: RuleType.subject,
+      pattern: 'Codex',
+      sound: AlertSound.systemLocal,
+      systemSoundUri: selectedUri,
+      systemSoundTitle: '哈基米系统闹铃',
+    );
+
+    expect(playbackUriForRule(rule), selectedUri);
+    final notificationSound = notificationSoundForRule(rule);
+    expect(notificationSound, isA<UriAndroidNotificationSound>());
+    expect(notificationSound.sound, selectedUri);
+  });
 }

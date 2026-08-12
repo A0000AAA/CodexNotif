@@ -18,6 +18,28 @@ int notificationIdForAlert(
       .remainder(1 << 31);
 }
 
+String playbackUriForRule(MailRule rule) {
+  if (rule.sound == AlertSound.systemLocal) {
+    final uri = rule.systemSoundUri;
+    if (uri != null && uri.isNotEmpty) return uri;
+  }
+  return 'android.resource://org.codexnotif.mobile/raw/${rule.sound.rawName ?? 'tone_phone'}';
+}
+
+AndroidNotificationSound notificationSoundForRule(MailRule rule) {
+  if (rule.sound == AlertSound.systemLocal) {
+    final uri = rule.systemSoundUri;
+
+    if (uri != null && uri.isNotEmpty) {
+      return UriAndroidNotificationSound(uri);
+    }
+
+    return const RawResourceAndroidNotificationSound('tone_alert');
+  }
+
+  return RawResourceAndroidNotificationSound(rule.sound.rawName!);
+}
+
 AndroidNotificationDetails buildAndroidNotificationDetails({
   required AlertMode mode,
   required String channelId,
@@ -163,7 +185,7 @@ class NotificationService {
     final android = _plugin.resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin>();
 
-    final sound = _soundForRule(rule);
+    final sound = notificationSoundForRule(rule);
     final effectiveMode = preview ? AlertMode.normal : rule.alertMode;
     final channelId = _channelIdForRule(rule, preview: preview);
     final channelName = preview
@@ -197,7 +219,7 @@ class NotificationService {
             sender: sender,
             subject: subject,
             matchedRule: matchedRule,
-            soundUri: _playbackUriForRule(rule),
+            soundUri: playbackUriForRule(rule),
           )
         : null;
     final details = NotificationDetails(
@@ -225,47 +247,7 @@ class NotificationService {
 
   Future<void> testRuleSound(MailRule rule) async {
     await initialize();
-    await SystemSoundService.previewOnce(_playbackUriForRule(rule));
-  }
-
-  String _playbackUriForRule(MailRule rule) {
-    if (rule.sound == AlertSound.systemLocal) {
-      final bundled = _bundledSystemSoundName(rule);
-      if (bundled != null) {
-        return 'android.resource://org.codexnotif.mobile/raw/$bundled';
-      }
-      final uri = rule.systemSoundUri;
-      if (uri != null && uri.isNotEmpty) return uri;
-    }
-    return 'android.resource://org.codexnotif.mobile/raw/${rule.sound.rawName ?? 'tone_phone'}';
-  }
-
-  AndroidNotificationSound _soundForRule(MailRule rule) {
-    if (rule.sound == AlertSound.systemLocal) {
-      final bundled = _bundledSystemSoundName(rule);
-      if (bundled != null) {
-        return RawResourceAndroidNotificationSound(bundled);
-      }
-      final uri = rule.systemSoundUri;
-
-      if (uri != null && uri.isNotEmpty) {
-        return UriAndroidNotificationSound(uri);
-      }
-
-      // User selected "systemLocal" but has not picked anything yet.
-      return const RawResourceAndroidNotificationSound(
-        'tone_alert',
-      );
-    }
-
-    return RawResourceAndroidNotificationSound(
-      rule.sound.rawName!,
-    );
-  }
-
-  String? _bundledSystemSoundName(MailRule rule) {
-    final title = rule.systemSoundTitle?.trim() ?? '';
-    return title.startsWith('哈基米系统闹铃') ? 'tone_hajimi' : null;
+    await SystemSoundService.previewOnce(playbackUriForRule(rule));
   }
 
   String _soundDisplayName(MailRule rule) {
@@ -279,12 +261,9 @@ class NotificationService {
   }
 
   String _channelIdForRule(MailRule rule, {bool preview = false}) {
-    final bundled = _bundledSystemSoundName(rule);
-    final soundSignature = bundled != null
-        ? '${rule.sound.name}|raw:$bundled'
-        : rule.sound == AlertSound.systemLocal
-            ? '${rule.sound.name}|${rule.systemSoundUri ?? ''}'
-            : rule.sound.name;
+    final soundSignature = rule.sound == AlertSound.systemLocal
+        ? '${rule.sound.name}|${rule.systemSoundUri ?? ''}'
+        : rule.sound.name;
     final signature =
         '${preview ? 'preview_alarm' : rule.alertMode.name}|$soundSignature';
 
