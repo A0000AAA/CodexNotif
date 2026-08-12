@@ -7,20 +7,30 @@ import 'models/strong_alert.dart';
 import 'screens/full_screen_alert_page.dart';
 import 'screens/home_page.dart';
 import 'services/background_service.dart';
+import 'services/native_alert_launch_service.dart';
 import 'services/notification_service.dart';
+import 'services/strong_alert_presentation.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   FlutterForegroundTask.initCommunicationPort();
   BackgroundService.initialize();
+  await NativeAlertLaunchService.instance.initialize();
   await NotificationService.instance.initialize();
 
   runApp(const QqMailPagerApp());
 }
 
 class QqMailPagerApp extends StatefulWidget {
-  const QqMailPagerApp({super.key});
+  const QqMailPagerApp({
+    super.key,
+    this.notificationAlerts,
+    this.home,
+  });
+
+  final Stream<StrongAlert>? notificationAlerts;
+  final Widget? home;
 
   @override
   State<QqMailPagerApp> createState() => _QqMailPagerAppState();
@@ -28,19 +38,26 @@ class QqMailPagerApp extends StatefulWidget {
 
 class _QqMailPagerAppState extends State<QqMailPagerApp> {
   final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
-  final Set<int> _openAlertIds = <int>{};
+  final StrongAlertPresentation _presentation = StrongAlertPresentation();
+  final Map<String, _OpenStrongAlertRoute> _openRoutes = {};
   StreamSubscription<StrongAlert>? _strongAlertSubscription;
+  StreamSubscription<StrongAlert>? _nativeAlertSubscription;
 
   @override
   void initState() {
     super.initState();
     _strongAlertSubscription =
-        NotificationService.instance.strongAlerts.listen(_showStrongAlert);
+        (widget.notificationAlerts ?? NotificationService.instance.strongAlerts)
+            .listen(_showStrongAlert);
+    _nativeAlertSubscription =
+        NativeAlertLaunchService.instance.alerts.listen(_showStrongAlert);
     FlutterForegroundTask.addTaskDataCallback(_onTaskData);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final pending = NotificationService.instance.takePendingStrongAlert();
       if (pending != null) _showStrongAlert(pending);
+      final nativePending = NativeAlertLaunchService.instance.takePending();
+      if (nativePending != null) _showStrongAlert(nativePending);
     });
   }
 
@@ -48,33 +65,71 @@ class _QqMailPagerAppState extends State<QqMailPagerApp> {
   void dispose() {
     FlutterForegroundTask.removeTaskDataCallback(_onTaskData);
     _strongAlertSubscription?.cancel();
+    _nativeAlertSubscription?.cancel();
     super.dispose();
   }
 
   void _onTaskData(Object data) {
-    if (data is! Map || data['type'] != 'strongAlert') return;
-    final alert = StrongAlert.fromPayload(data['payload']?.toString());
-    if (alert != null) _showStrongAlert(alert);
+    if (data is! Map) return;
+    switch (data['type']) {
+      case 'strongAlert':
+        final alert = StrongAlert.fromPayload(data['payload']?.toString());
+        if (alert != null) _showStrongAlert(alert);
+      case 'strongAlertAcknowledged':
+        final notificationId = switch (data['notificationId']) {
+          final int value => value,
+          final Object value => int.tryParse(value.toString()),
+          _ => null,
+        };
+        final sessionToken = data['sessionToken']?.toString() ?? '';
+        if (notificationId != null) {
+          _removeAcknowledgedRoute(notificationId, sessionToken);
+        }
+    }
   }
 
   void _showStrongAlert(StrongAlert alert) {
-    if (!_openAlertIds.add(alert.notificationId)) return;
+    final update = _presentation.openOrUpdate(alert);
+    if (!update.created) return;
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final navigator = _navigatorKey.currentState;
-      if (navigator == null) {
-        _openAlertIds.remove(alert.notificationId);
+      if (!mounted || navigator == null) {
+        _presentation
+            .remove(alert.sessionToken, expected: update.listenable)
+            ?.dispose();
         return;
       }
 
-      await navigator.push<void>(
-        MaterialPageRoute(
-          fullscreenDialog: true,
-          builder: (_) => FullScreenAlertPage(alert: alert),
+      final route = MaterialPageRoute<void>(
+        fullscreenDialog: true,
+        builder: (_) => FullScreenAlertPage(
+          alertListenable: update.listenable,
         ),
       );
-      _openAlertIds.remove(alert.notificationId);
+      final open = _OpenStrongAlertRoute(route, update.listenable);
+      _openRoutes[alert.sessionToken] = open;
+      await navigator.push<void>(route);
+      if (identical(_openRoutes[alert.sessionToken], open)) {
+        _openRoutes.remove(alert.sessionToken);
+      }
+      _presentation
+          .remove(alert.sessionToken, expected: update.listenable)
+          ?.dispose();
     });
+  }
+
+  void _removeAcknowledgedRoute(int notificationId, String sessionToken) {
+    final open = _openRoutes[sessionToken];
+    if (open == null ||
+        open.listenable.value.notificationId != notificationId ||
+        open.listenable.value.sessionToken != sessionToken) {
+      return;
+    }
+
+    _openRoutes.remove(sessionToken);
+    _navigatorKey.currentState?.removeRoute(open.route);
+    _presentation.remove(sessionToken, expected: open.listenable)?.dispose();
   }
 
   @override
@@ -86,9 +141,16 @@ class _QqMailPagerAppState extends State<QqMailPagerApp> {
       theme: _buildTheme(Brightness.light),
       darkTheme: _buildTheme(Brightness.dark),
       themeMode: ThemeMode.system,
-      home: const HomePage(),
+      home: widget.home ?? const HomePage(),
     );
   }
+}
+
+class _OpenStrongAlertRoute {
+  const _OpenStrongAlertRoute(this.route, this.listenable);
+
+  final Route<void> route;
+  final ValueNotifier<StrongAlert> listenable;
 }
 
 ThemeData _buildTheme(Brightness brightness) {

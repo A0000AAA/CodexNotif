@@ -1,24 +1,19 @@
-import 'dart:async';
-
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../models/strong_alert.dart';
 import '../services/notification_service.dart';
-import '../services/system_sound_service.dart';
+import '../services/strong_alert_platform_service.dart';
 
 class FullScreenAlertPage extends StatefulWidget {
   const FullScreenAlertPage({
     super.key,
-    required this.alert,
+    required this.alertListenable,
     this.onAcknowledge,
-    this.onStartPlayback,
-    this.onStopPlayback,
   });
 
-  final StrongAlert alert;
+  final ValueListenable<StrongAlert> alertListenable;
   final Future<void> Function()? onAcknowledge;
-  final Future<void> Function(String uri)? onStartPlayback;
-  final Future<void> Function()? onStopPlayback;
 
   @override
   State<FullScreenAlertPage> createState() => _FullScreenAlertPageState();
@@ -27,36 +22,20 @@ class FullScreenAlertPage extends StatefulWidget {
 class _FullScreenAlertPageState extends State<FullScreenAlertPage> {
   bool _acknowledging = false;
 
-  @override
-  void initState() {
-    super.initState();
-    final start = widget.onStartPlayback;
-    unawaited(
-      start != null
-          ? start(widget.alert.soundUri)
-          : SystemSoundService.startAlert(widget.alert.soundUri),
-    );
-  }
-
-  Future<void> _stopPlayback() async {
-    final stop = widget.onStopPlayback;
-    if (stop != null) {
-      await stop();
-    } else {
-      await SystemSoundService.stopAlert();
-    }
-  }
-
   Future<void> _acknowledge() async {
     if (_acknowledging) return;
     setState(() => _acknowledging = true);
-    await _stopPlayback();
 
     final callback = widget.onAcknowledge;
     if (callback != null) {
       await callback();
     } else {
-      await NotificationService.instance.cancel(widget.alert.notificationId);
+      final alert = widget.alertListenable.value;
+      await StrongAlertPlatformService.acknowledge(
+        alert.notificationId,
+        sessionToken: alert.sessionToken,
+      );
+      await NotificationService.instance.cancel(alert.notificationId);
     }
 
     if (mounted && Navigator.of(context).canPop()) {
@@ -65,14 +44,16 @@ class _FullScreenAlertPageState extends State<FullScreenAlertPage> {
   }
 
   @override
-  void dispose() {
-    unawaited(_stopPlayback());
-    super.dispose();
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<StrongAlert>(
+      valueListenable: widget.alertListenable,
+      builder: (context, alert, _) => _buildAlert(context, alert),
+    );
   }
 
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildAlert(BuildContext context, StrongAlert alert) {
     final colors = Theme.of(context).colorScheme;
+    final combined = alert.count > 1;
 
     return PopScope(
       canPop: false,
@@ -105,21 +86,35 @@ class _FullScreenAlertPageState extends State<FullScreenAlertPage> {
               ),
               const SizedBox(height: 20),
               Text(
-                widget.alert.subject.isEmpty ? '收到匹配邮件' : widget.alert.subject,
+                combined
+                    ? '收到多封匹配邮件'
+                    : alert.subject.isEmpty
+                        ? '收到匹配邮件'
+                        : alert.subject,
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                       fontWeight: FontWeight.w700,
                     ),
               ),
+              if (combined) ...[
+                const SizedBox(height: 8),
+                Text(
+                  '共 ${alert.count} 封',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: colors.primary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                ),
+              ],
               const SizedBox(height: 12),
               Text(
-                widget.alert.sender.isEmpty ? 'QQ 邮箱规则匹配' : widget.alert.sender,
+                alert.sender.isEmpty ? 'QQ 邮箱规则匹配' : alert.sender,
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       color: colors.onSurfaceVariant,
                     ),
               ),
-              if (widget.alert.matchedRule.isNotEmpty) ...[
+              if (alert.matchedRule.isNotEmpty) ...[
                 const SizedBox(height: 20),
                 Container(
                   width: double.infinity,
@@ -129,7 +124,7 @@ class _FullScreenAlertPageState extends State<FullScreenAlertPage> {
                     borderRadius: BorderRadius.circular(14),
                   ),
                   child: Text(
-                    '匹配规则：${widget.alert.matchedRule}',
+                    '匹配规则：${alert.matchedRule}',
                     textAlign: TextAlign.center,
                     style: TextStyle(color: colors.onSurfaceVariant),
                   ),

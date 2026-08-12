@@ -29,36 +29,47 @@ import java.util.Map;
 
 public class MainActivity extends FlutterActivity {
     private static final String CHANNEL = "org.codexnotif.mobile/system_sound";
+    private static final String ALERT_LAUNCH_CHANNEL =
+            "org.codexnotif.mobile/alert_launch";
+    private static final String EXTRA_STRONG_ALERT_PAYLOAD =
+            "org.codexnotif.mobile.extra.STRONG_ALERT_PAYLOAD";
     private static final int PICK_RINGTONE_REQUEST = 7102;
     private static final String TAG = "CodexNotifAudio";
 
     private MethodChannel.Result pendingRingtoneResult;
+    private MethodChannel alertLaunchChannel;
+    private String pendingStrongAlertPayload;
     private MediaPlayer previewPlayer;
-    private MediaPlayer alertPlayer;
 
     @Override
     public void configureFlutterEngine(@NonNull FlutterEngine flutterEngine) {
         super.configureFlutterEngine(flutterEngine);
+
+        alertLaunchChannel = new MethodChannel(
+                flutterEngine.getDartExecutor().getBinaryMessenger(),
+                ALERT_LAUNCH_CHANNEL
+        );
+        alertLaunchChannel.setMethodCallHandler((call, result) -> {
+            if (!"takePendingStrongAlert".equals(call.method)) {
+                result.notImplemented();
+                return;
+            }
+            final String payload = pendingStrongAlertPayload;
+            pendingStrongAlertPayload = null;
+            result.success(payload);
+        });
+        captureStrongAlertPayload(getIntent(), false);
 
         new MethodChannel(
                 flutterEngine.getDartExecutor().getBinaryMessenger(),
                 CHANNEL
         ).setMethodCallHandler((call, result) -> {
             if ("previewSound".equals(call.method)) {
-                playSound(call.argument("uri"), false, false, result);
-                return;
-            }
-            if ("startAlertSound".equals(call.method)) {
-                playSound(call.argument("uri"), true, true, result);
+                playPreviewSound(call.argument("uri"), result);
                 return;
             }
             if ("stopPreviewSound".equals(call.method)) {
                 stopPreviewPlayer();
-                result.success(null);
-                return;
-            }
-            if ("stopAlertSound".equals(call.method)) {
-                stopAlertPlayer();
                 result.success(null);
                 return;
             }
@@ -138,17 +149,30 @@ public class MainActivity extends FlutterActivity {
         });
     }
 
-    private void playSound(
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        captureStrongAlertPayload(intent, true);
+    }
+
+    private void captureStrongAlertPayload(Intent intent, boolean pushNow) {
+        if (intent == null) return;
+        final String payload = intent.getStringExtra(EXTRA_STRONG_ALERT_PAYLOAD);
+        intent.removeExtra(EXTRA_STRONG_ALERT_PAYLOAD);
+        if (payload == null || payload.isEmpty()) return;
+        if (pushNow && alertLaunchChannel != null) {
+            alertLaunchChannel.invokeMethod("showStrongAlert", payload);
+        } else {
+            pendingStrongAlertPayload = payload;
+        }
+    }
+
+    private void playPreviewSound(
             String requestedUri,
-            boolean looping,
-            boolean alert,
             MethodChannel.Result result
     ) {
-        if (alert) {
-            stopAlertPlayer();
-        } else {
-            stopPreviewPlayer();
-        }
+        stopPreviewPlayer();
 
         final String fallback =
                 "android.resource://" + getPackageName() + "/raw/tone_phone";
@@ -160,12 +184,12 @@ public class MainActivity extends FlutterActivity {
                                     ? fallback
                                     : requestedUri
                     ),
-                    looping
+                    false
             );
         } catch (IOException | RuntimeException firstError) {
             Log.w(TAG, "Selected ringtone could not be opened; using bundled tone", firstError);
             try {
-                player = createAlarmPlayer(Uri.parse(fallback), looping);
+                player = createAlarmPlayer(Uri.parse(fallback), false);
             } catch (IOException | RuntimeException fallbackError) {
                 result.error(
                         "playback_failed",
@@ -182,13 +206,9 @@ public class MainActivity extends FlutterActivity {
             }
             completed.release();
         });
-        if (alert) {
-            alertPlayer = player;
-        } else {
-            previewPlayer = player;
-        }
+        previewPlayer = player;
         player.start();
-        Log.i(TAG, "Alarm playback started; looping=" + looping);
+        Log.i(TAG, "Preview playback started");
         result.success(null);
     }
 
@@ -288,21 +308,9 @@ public class MainActivity extends FlutterActivity {
         previewPlayer = null;
     }
 
-    private void stopAlertPlayer() {
-        if (alertPlayer == null) return;
-        try {
-            alertPlayer.stop();
-        } catch (IllegalStateException ignored) {
-        }
-        alertPlayer.release();
-        alertPlayer = null;
-        Log.i(TAG, "Alarm playback stopped");
-    }
-
     @Override
     protected void onDestroy() {
         stopPreviewPlayer();
-        stopAlertPlayer();
         super.onDestroy();
     }
 
