@@ -77,6 +77,33 @@ void main() {
     expect(source, isNot(contains('SystemSoundService.startAlert')));
   });
 
+  test('mail matches use dedicated strong and normal notification paths', () {
+    final source =
+        File('lib/background/mail_monitor_task.dart').readAsStringSync();
+
+    expect(source, contains('final latest = createStrongAlert('));
+    expect(source, contains('await _strongAlerts.add(latest);'));
+    expect(
+      source,
+      contains('await NotificationService.instance.showNormalMatchedMail('),
+    );
+    expect(source, isNot(contains('.showMatchedMail(')));
+  });
+
+  test('acknowledgement is handled and alerts are disposed before IMAP', () {
+    final source =
+        File('lib/background/mail_monitor_task.dart').readAsStringSync();
+    final onDestroy = source.substring(source.indexOf('Future<void> onDestroy'));
+
+    expect(source, contains("data['command'] == 'acknowledgeStrongAlert'"));
+    expect(source, contains('_strongAlerts.acknowledge('));
+    expect(onDestroy.indexOf('await _strongAlerts.dispose()'), greaterThan(-1));
+    expect(
+      onDestroy.indexOf('await _strongAlerts.dispose()'),
+      lessThan(onDestroy.indexOf('await _disconnectClient()')),
+    );
+  });
+
   test('scan summary exposes saved and server UIDs for IMAP diagnosis', () {
     final text = buildScanReportText(
       now: DateTime(2026, 8, 12, 13, 20, 9),

@@ -11,7 +11,9 @@ import '../models/monitor_health.dart';
 import '../services/notification_service.dart';
 import '../services/qq_mail_service.dart';
 import '../services/secure_config_service.dart';
+import '../services/strong_alert_platform_service.dart';
 import 'resilient_poll_loop.dart';
+import 'strong_alert_coordinator.dart';
 
 @pragma('vm:entry-point')
 void foregroundStartCallback() {
@@ -24,6 +26,26 @@ void foregroundStartCallback() {
 class MailMonitorTaskHandler extends TaskHandler {
   MailClient? _client;
   Mailbox? _selectedMailbox;
+
+  late final StrongAlertCoordinator _strongAlerts = StrongAlertCoordinator(
+    startAudio: StrongAlertPlatformService.startAudio,
+    stopAudio: StrongAlertPlatformService.stopAudio,
+    showNotification: (alert, {required isUpdate}) =>
+        NotificationService.instance.showStrongAlert(
+          alert,
+          isUpdate: isUpdate,
+        ),
+    requestFullScreen: StrongAlertPlatformService.requestFullScreen,
+    cancelNotification: NotificationService.instance.cancel,
+    publish: (alert) => FlutterForegroundTask.sendDataToMain({
+      'type': 'strongAlert',
+      'payload': alert.toPayload(),
+    }),
+    publishAcknowledged: (id) => FlutterForegroundTask.sendDataToMain({
+      'type': 'strongAlertAcknowledged',
+      'notificationId': id,
+    }),
+  );
 
   ResilientPollLoop? _pollLoop;
 
@@ -398,17 +420,22 @@ class MailMonitorTaskHandler extends TaskHandler {
     if (matched == null) return;
 
     try {
-      final strongAlert = await NotificationService.instance.showMatchedMail(
-        rule: matched,
-        sender: senderText,
-        subject: subject,
-        matchedRule: '${matched.type.label}「${matched.pattern}」',
-      );
-      if (strongAlert != null) {
-        FlutterForegroundTask.sendDataToMain({
-          'type': 'strongAlert',
-          'payload': strongAlert.toPayload(),
-        });
+      final matchedRule = '${matched.type.label}「${matched.pattern}」';
+      if (matched.alertMode == AlertMode.strong) {
+        final latest = createStrongAlert(
+          rule: matched,
+          sender: senderText,
+          subject: subject,
+          matchedRule: matchedRule,
+        );
+        await _strongAlerts.add(latest);
+      } else {
+        await NotificationService.instance.showNormalMatchedMail(
+          rule: matched,
+          sender: senderText,
+          subject: subject,
+          matchedRule: matchedRule,
+        );
       }
     } catch (e) {
       FlutterForegroundTask.sendDataToMain({
@@ -455,8 +482,16 @@ class MailMonitorTaskHandler extends TaskHandler {
 
   @override
   void onReceiveData(Object data) {
-    if (data is Map && data['command'] == 'reload') {
+    if (data is! Map) return;
+
+    if (data['command'] == 'reload') {
       unawaited(_connectSafely());
+    } else if (data['command'] == 'acknowledgeStrongAlert') {
+      unawaited(
+        _strongAlerts.acknowledge(
+          notificationId: parseStoredUid(data['notificationId']),
+        ),
+      );
     }
   }
 
@@ -467,6 +502,7 @@ class MailMonitorTaskHandler extends TaskHandler {
   ) async {
     _destroyed = true;
     _pollLoop?.stop();
+    await _strongAlerts.dispose();
     await _disconnectClient();
 
     FlutterForegroundTask.sendDataToMain({
